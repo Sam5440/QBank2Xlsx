@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 题库生成器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            margin-bottom: 30px;
+            color: #2d3748;
+            font-size: 32px;
+            font-weight: 700;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .section-title {
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2d3748;
+            font-size: 18px;
+        }
+        .question-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+        }
+        .type-btn {
+            padding: 12px 20px;
+            border: 2px solid #cbd5e0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            font-weight: 500;
+            color: #2d3748;
+            text-align: center;
+        }
+        .type-btn:hover {
+            border-color: #667eea;
+            background: #f7fafc;
+        }
+        .type-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #2d3748;
+            background: white;
+            transition: border-color 0.2s;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+        }
+        .api-config {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .api-row {
+            display: grid;
+            grid-template-columns: 40px 150px 1fr 1fr 150px 80px;
+            gap: 10px;
+            align-items: center;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border: 2px solid #e2e8f0;
+        }
+        .api-row input[type="radio"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .api-row input[type="text"],
+        .api-row input[type="password"] {
+            margin: 0;
+        }
+        button {
+            padding: 14px 32px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        button.small {
+            padding: 10px 20px;
+            font-size: 14px;
+        }
+        button.danger {
+            background: #f56565;
+        }
+        button.danger:hover {
+            background: #e53e3e;
+            box-shadow: 0 4px 12px rgba(245, 101, 101, 0.4);
+        }
+        .output {
+            background: #2d3748;
+            color: #e2e8f0;
+            border: 2px solid #4a5568;
+            border-radius: 6px;
+            padding: 20px;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .error {
+            color: #e53e3e;
+            margin-top: 10px;
+            padding: 12px;
+            background: #fff5f5;
+            border-radius: 6px;
+            border-left: 4px solid #e53e3e;
+            font-weight: 500;
+        }
+        .label {
+            font-size: 12px;
+            color: #718096;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .input-pair {
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .input-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .char-count {
+            font-size: 14px;
+            color: #667eea;
+            font-weight: 600;
+        }
+        .input-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .output-pair {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎓 AI 题库生成器</h1>
+
+        <div class="section">
+            <div class="section-title">1️⃣ 选择题型（可多选）</div>
+            <div class="question-types">
+                <button class="type-btn" data-type="单选题">单选题</button>
+                <button class="type-btn" data-type="多选题">多选题</button>
+                <button class="type-btn" data-type="不定项选择题">不定项选择题</button>
+                <button class="type-btn" data-type="判断题">判断题</button>
+                <button class="type-btn" data-type="填空题">填空题</button>
+                <button class="type-btn" data-type="简答题">简答题</button>
+                <button class="type-btn" data-type="排序题">排序题</button>
+                <button class="type-btn" data-type="计算题">计算题</button>
+                <button class="type-btn" data-type="论述题">论述题</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">2️⃣ API 配置管理 <span style="color: #718096; font-size: 14px; font-weight: normal;">(API URL 需要带 /v1，例如: https://api.openai.com/v1)</span></div>
+            <div class="api-config" id="apiConfigs"></div>
+            <button class="small" onclick="addApiConfig()" style="margin-top: 10px;">➕ 添加 API 配置</button>
+        </div>
+
+        <div class="section">
+            <div class="section-title">3️⃣ 输入题目需求</div>
+            <div id="inputPairs"></div>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button class="small" onclick="addInputPair()">➕ 添加输入</button>
+                <button class="small" onclick="exportInputs()">💾 导出切分</button>
+                <button class="small" onclick="importInputs()">📂 导入切分</button>
+            </div>
+            <input type="file" id="importFile" accept=".json" style="display: none;" onchange="handleImport(event)">
+        </div>
+
+        <div class="section">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <button id="generateBtn" onclick="generateQuestions()">🚀 生成题目</button>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="streamToggle" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <span style="font-size: 14px; color: #2d3748;">流式输出</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">4️⃣ AI 生成结果</div>
+            <div id="outputPairs"></div>
+            <div class="error" id="error" style="display: none;"></div>
+        </div>
+
+        <div class="actions">
+            <button id="exportBtn" onclick="exportExcel()" disabled>📥 导出 Excel</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedTypes = [];
+        let generatedJSON = '';
+        let encryptionKey = '';
+        let apiConfigs = [];
+        let inputPairs = [{id: 0, text: ''}];
+        let outputPairs = [{id: 0, editable: '', full: ''}];
+        let nextId = 1;
+
+        async function loadEncryptionKey() {
+            const response = await fetch('/api/encryption-key');
+            const data = await response.json();
+            encryptionKey = data.key;
+        }
+
+        function encrypt(text) {
+            return CryptoJS.AES.encrypt(text, encryptionKey).toString();
+        }
+
+        function decrypt(ciphertext) {
+            try {
+                const bytes = CryptoJS.AES.decrypt(ciphertext, encryptionKey);
+                return bytes.toString(CryptoJS.enc.Utf8);
+            } catch {
+                return '';
+            }
+        }
+
+        function setCookie(name, value, days = 365) {
+            const d = new Date();
+            d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+            document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/`;
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+        }
+
+        function saveConfigs() {
+            const encrypted = encrypt(JSON.stringify(apiConfigs));
+            setCookie('apiConfigs', encrypted);
+        }
+
+        function loadConfigs() {
+            const encrypted = getCookie('apiConfigs');
+            if (encrypted) {
+                const decrypted = decrypt(encrypted);
+                if (decrypted) {
+                    apiConfigs = JSON.parse(decrypted);
+                }
+            }
+            if (apiConfigs.length === 0) {
+                apiConfigs = [{name: 'OpenAI', url: 'https://api.openai.com/v1', key: '', model: 'gpt-4', selected: true}];
+            }
+            renderApiConfigs();
+        }
+
+        function renderApiConfigs() {
+            const container = document.getElementById('apiConfigs');
+            container.innerHTML = apiConfigs.map((config, idx) => `
+                <div class="api-row">
+                    <input type="radio" name="selectedApi" ${config.selected ? 'checked' : ''} onchange="selectApi(${idx})">
+                    <input type="text" placeholder="名称" value="${config.name}" onchange="updateConfig(${idx}, 'name', this.value)">
+                    <input type="text" placeholder="API URL" value="${config.url}" onchange="updateConfig(${idx}, 'url', this.value)">
+                    <input type="password" placeholder="API Key" value="${config.key}" onchange="updateConfig(${idx}, 'key', this.value)">
+                    <input type="text" placeholder="Model" value="${config.model}" onchange="updateConfig(${idx}, 'model', this.value)">
+                    <button class="small danger" onclick="deleteConfig(${idx})">删除</button>
+                </div>
+            `).join('');
+        }
+
+        function addApiConfig() {
+            apiConfigs.push({name: '新配置', url: '', key: '', model: '', selected: false});
+            renderApiConfigs();
+        }
+
+        function deleteConfig(idx) {
+            apiConfigs.splice(idx, 1);
+            if (apiConfigs.length === 0) {
+                addApiConfig();
+            }
+            saveConfigs();
+            renderApiConfigs();
+        }
+
+        function selectApi(idx) {
+            apiConfigs.forEach((c, i) => c.selected = i === idx);
+            saveConfigs();
+        }
+
+        function updateConfig(idx, field, value) {
+            apiConfigs[idx][field] = value;
+            saveConfigs();
+        }
+
+        function updateCharCount(id) {
+            const pair = inputPairs.find(p => p.id === id);
+            if (pair) {
+                const textarea = document.querySelector(`#input-${id}`);
+                pair.text = textarea.value;
+                document.querySelector(`#count-${id}`).textContent = `${pair.text.length} 字`;
+            }
+        }
+
+        function addInputPair() {
+            inputPairs.push({id: nextId++, text: ''});
+            outputPairs.push({id: inputPairs[inputPairs.length - 1].id, editable: '', full: ''});
+            renderInputPairs();
+            renderOutputPairs();
+        }
+
+        function deleteInputPair(id) {
+            const idx = inputPairs.findIndex(p => p.id === id);
+            if (idx > -1 && inputPairs.length > 1) {
+                inputPairs.splice(idx, 1);
+                outputPairs.splice(idx, 1);
+                renderInputPairs();
+                renderOutputPairs();
+            }
+        }
+
+        function splitInputPair(id) {
+            const idx = inputPairs.findIndex(p => p.id === id);
+            if (idx === -1) return;
+
+            const textarea = document.querySelector(`#input-${id}`);
+            const text = textarea.value;
+            const splitPos = Math.floor(text.length / 2);
+
+            const firstHalf = text.substring(0, splitPos);
+            const secondHalf = text.substring(splitPos);
+
+            inputPairs[idx].text = firstHalf;
+            inputPairs.splice(idx + 1, 0, {id: nextId++, text: secondHalf});
+            outputPairs.splice(idx + 1, 0, {id: inputPairs[idx + 1].id, editable: '', full: ''});
+
+            renderInputPairs();
+            renderOutputPairs();
+
+            setTimeout(() => {
+                const firstTextarea = document.querySelector(`#input-${id}`);
+                const secondTextarea = document.querySelector(`#input-${inputPairs[idx + 1].id}`);
+                if (firstTextarea) {
+                    firstTextarea.scrollTop = firstTextarea.scrollHeight;
+                }
+                if (secondTextarea) {
+                    secondTextarea.scrollTop = 0;
+                }
+            }, 0);
+        }
+
+        function renderInputPairs() {
+            const container = document.getElementById('inputPairs');
+            container.innerHTML = inputPairs.map(pair => `
+                <div class="input-pair">
+                    <div class="input-header">
+                        <span style="font-size: 14px; color: #718096; font-weight: 600;">输入 #${pair.id + 1}</span>
+                        <span class="char-count" id="count-${pair.id}">${pair.text.length} 字</span>
+                    </div>
+                    <textarea id="input-${pair.id}" oninput="updateCharCount(${pair.id})" placeholder="请输入题目需求">${pair.text}</textarea>
+                    <div class="input-actions">
+                        <button class="small" onclick="splitInputPair(${pair.id})">✂️ 切分</button>
+                        ${inputPairs.length > 1 ? `<button class="small danger" onclick="deleteInputPair(${pair.id})">删除</button>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderOutputPairs() {
+            const container = document.getElementById('outputPairs');
+            container.innerHTML = outputPairs.map((pair, idx) => `
+                <div class="output-pair">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 14px; color: #718096; font-weight: 600;">输出 #${pair.id + 1}</span>
+                        <button class="small" onclick="regenerateSingle(${pair.id})">🔄 重新生成</button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <div style="font-size: 12px; color: #718096; margin-bottom: 8px;">📝 可编辑 JSON</div>
+                            <textarea class="output" id="editable-${pair.id}" style="background: white; color: #2d3748; border: 2px solid #e2e8f0;" placeholder="等待生成...">${pair.editable}</textarea>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #718096; margin-bottom: 8px;">📄 完整输出</div>
+                            <div class="output" id="full-${pair.id}">${pair.full || '等待生成...'}</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function exportInputs() {
+            const data = {inputs: inputPairs.map(p => p.text)};
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'split_inputs.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importInputs() {
+            document.getElementById('importFile').click();
+        }
+
+        function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    inputPairs = data.inputs.map((text, i) => ({id: i, text}));
+                    outputPairs = inputPairs.map(p => ({id: p.id, editable: '', full: ''}));
+                    nextId = inputPairs.length;
+                    renderInputPairs();
+                    renderOutputPairs();
+                } catch (err) {
+                    alert('导入失败: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        document.querySelectorAll('.type-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.classList.toggle('active');
+                const type = btn.dataset.type;
+                if (selectedTypes.includes(type)) {
+                    selectedTypes = selectedTypes.filter(t => t !== type);
+                } else {
+                    selectedTypes.push(type);
+                }
+                setCookie('questionTypes', encrypt(JSON.stringify(selectedTypes)));
+            });
+        });
+
+        function extractJSON(text) {
+            const match = text.match(/```json\s*([\s\S]*?)\s*```/);
+            return match ? match[1].trim() : '';
+        }
+
+        async function generateSingle(pairId, userInput) {
+            const selectedApi = apiConfigs.find(c => c.selected);
+            const idx = inputPairs.findIndex(p => p.id === pairId);
+            if (idx === -1) return;
+
+            outputPairs[idx].full = '正在生成中...\n\n';
+            outputPairs[idx].editable = '';
+            const fullEl = document.getElementById(`full-${pairId}`);
+            const editableEl = document.getElementById(`editable-${pairId}`);
+            if (fullEl) fullEl.textContent = '正在生成中...\n\n';
+            if (editableEl) editableEl.value = '';
+
+            const isStreaming = document.getElementById('streamToggle').checked;
+
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    apiUrl: selectedApi.url,
+                    apiKey: selectedApi.key,
+                    model: selectedApi.model,
+                    questionTypes: selectedTypes,
+                    userInput
+                })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullText = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = JSON.parse(line.slice(6));
+                        if (data.error) {
+                            throw new Error(data.error);
+                        } else if (data.text) {
+                            fullText += data.text;
+                            if (isStreaming) {
+                                outputPairs[idx].full = fullText;
+                                if (fullEl) {
+                                    fullEl.textContent = fullText;
+                                    fullEl.scrollTop = fullEl.scrollHeight;
+                                }
+
+                                const jsonContent = extractJSON(fullText);
+                                if (jsonContent) {
+                                    outputPairs[idx].editable = jsonContent;
+                                    if (editableEl) {
+                                        editableEl.value = jsonContent;
+                                        editableEl.scrollTop = editableEl.scrollHeight;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!isStreaming) {
+                outputPairs[idx].full = fullText;
+                if (fullEl) fullEl.textContent = fullText;
+                const jsonContent = extractJSON(fullText);
+                if (jsonContent) {
+                    outputPairs[idx].editable = jsonContent;
+                    if (editableEl) editableEl.value = jsonContent;
+                }
+            }
+        }
+
+        async function regenerateSingle(pairId) {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+
+            const selectedApi = apiConfigs.find(c => c.selected);
+            if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
+                error.textContent = '❌ 请完整填写选中的 API 配置';
+                error.style.display = 'block';
+                return;
+            }
+
+            if (selectedTypes.length === 0) {
+                error.textContent = '❌ 请选择题型';
+                error.style.display = 'block';
+                return;
+            }
+
+            const pair = inputPairs.find(p => p.id === pairId);
+            if (!pair || !pair.text.trim()) {
+                error.textContent = '❌ 输入内容为空';
+                error.style.display = 'block';
+                return;
+            }
+
+            try {
+                await generateSingle(pairId, pair.text);
+            } catch (e) {
+                error.textContent = `❌ 错误: ${e.message}`;
+                error.style.display = 'block';
+            }
+        }
+
+        async function generateQuestions() {
+            const error = document.getElementById('error');
+            const generateBtn = document.getElementById('generateBtn');
+            const exportBtn = document.getElementById('exportBtn');
+
+            error.style.display = 'none';
+            error.textContent = '';
+            exportBtn.disabled = true;
+
+            const selectedApi = apiConfigs.find(c => c.selected);
+            if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
+                error.textContent = '❌ 请完整填写选中的 API 配置';
+                error.style.display = 'block';
+                return;
+            }
+
+            if (selectedTypes.length === 0) {
+                error.textContent = '❌ 请选择题型';
+                error.style.display = 'block';
+                return;
+            }
+
+            const hasInput = inputPairs.some(p => p.text.trim());
+            if (!hasInput) {
+                error.textContent = '❌ 请至少输入一个需求';
+                error.style.display = 'block';
+                return;
+            }
+
+            generateBtn.disabled = true;
+
+            const promises = inputPairs.map(pair => {
+                if (!pair.text.trim()) return Promise.resolve();
+                return generateSingle(pair.id, pair.text).catch(e => {
+                    console.error(`生成失败 (输入 #${pair.id + 1}):`, e);
+                });
+            });
+
+            await Promise.all(promises);
+
+            generateBtn.disabled = false;
+            exportBtn.disabled = false;
+        }
+
+        async function exportExcel() {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+            error.textContent = '';
+
+            try {
+                let allQuestions = [];
+                for (const pair of outputPairs) {
+                    const textarea = document.getElementById(`editable-${pair.id}`);
+                    if (textarea && textarea.value.trim()) {
+                        const jsonData = JSON.parse(textarea.value);
+                        const questions = jsonData.questions || [];
+                        allQuestions = allQuestions.concat(questions);
+                    }
+                }
+
+                if (allQuestions.length === 0) {
+                    error.textContent = '❌ 没有可导出的题目';
+                    error.style.display = 'block';
+                    return;
+                }
+
+                const response = await fetch('/api/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ questions: allQuestions })
+                });
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'exam_questions.xlsx';
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (e) {
+                error.textContent = `❌ 导出失败: ${e.message}`;
+                error.style.display = 'block';
+            }
+        }
+
+        window.onload = async () => {
+            await loadEncryptionKey();
+            loadConfigs();
+            renderInputPairs();
+            renderOutputPairs();
+
+            const savedTypes = getCookie('questionTypes');
+            if (savedTypes) {
+                const decrypted = decrypt(savedTypes);
+                if (decrypted) {
+                    selectedTypes = JSON.parse(decrypted);
+                    selectedTypes.forEach(type => {
+                        document.querySelector(`[data-type="${type}"]`)?.classList.add('active');
+                    });
+                }
+            }
+        };
+    </script>
+</body>
+</html>
