@@ -32,9 +32,17 @@ class GenerateRequest(BaseModel):
     model: str
     questionTypes: list
     userInput: str
+    systemPrompt: str = ""
+    directory: str = ""
 
 class ExportRequest(BaseModel):
     questions: list
+
+class AIRequest(BaseModel):
+    apiUrl: str
+    apiKey: str
+    model: str
+    content: str
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
@@ -59,15 +67,25 @@ async def generate_questions(req: GenerateRequest):
         if examples:
             examples_text += f"\n{qtype}示例：\n{json.dumps(examples[0], ensure_ascii=False, indent=2)}\n"
 
-    system_prompt = f"""你是一个专业的题库生成助手。请严格按照以下JSON格式生成题目，必须用```json代码块包裹：
+    # 使用自定义系统提示词或默认提示词
+    system_prompt = req.systemPrompt if req.systemPrompt else f"""你是一个专业的题库生成助手。请严格按照以下JSON格式生成题目，必须用```json代码块包裹：
 
-{examples_text}
+{{{{json_example}}}}
+
+目录结构：
+{{{{TOP}}}}
 
 输出格式要求：
 1. 必须使用```json代码块包裹JSON内容
 2. JSON格式必须严格符合示例
 3. 所有字段名必须与示例完全一致
-4. 返回格式：{{"questions": [...]}}"""
+4. 返回格式：{{"questions": [...]}}
+5. 如果题目没有解析内容，必须生成详细的解析说明
+6. 根据目录结构匹配合适的章节"""
+
+    # 替换占位符
+    system_prompt = system_prompt.replace('{{json_example}}', examples_text)
+    system_prompt = system_prompt.replace('{{TOP}}', req.directory if req.directory else '无')
 
     user_prompt = f"""用户需求：
 {req.userInput}
@@ -116,6 +134,58 @@ async def export_excel(req: ExportRequest):
     finally:
         if os.path.exists(json_path):
             os.unlink(json_path)
+
+@app.post("/api/extract-directory")
+async def extract_directory(req: AIRequest):
+    """使用 AI 提取目录结构"""
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{req.apiUrl}/chat/completions",
+                headers={'Authorization': f'Bearer {req.apiKey}', 'Content-Type': 'application/json'},
+                json={
+                    'model': req.model,
+                    'messages': [
+                        {'role': 'system', 'content': '你是一个专业的内容分析助手。请根据用户提供的题目需求，提取或生成合适的目录结构。目录应该简洁明了，使用层级结构。'},
+                        {'role': 'user', 'content': f'请根据以下内容提取或生成目录结构：\n\n{req.content}\n\n请直接输出目录结构，不要有其他说明文字。'}
+                    ],
+                    'stream': False
+                }
+            )
+            data = response.json()
+            if 'choices' in data and len(data['choices']) > 0:
+                directory = data['choices'][0]['message']['content'].strip()
+                return {"directory": directory}
+            else:
+                return {"error": "无法提取目录"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/api/generate-filename")
+async def generate_filename(req: AIRequest):
+    """使用 AI 生成文件名"""
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{req.apiUrl}/chat/completions",
+                headers={'Authorization': f'Bearer {req.apiKey}', 'Content-Type': 'application/json'},
+                json={
+                    'model': req.model,
+                    'messages': [
+                        {'role': 'system', 'content': '你是一个专业的文件命名助手。请根据用户提供的题目需求，生成一个简洁、有意义的文件名（不包含扩展名）。文件名应该使用英文或拼音，用下划线或连字符分隔。'},
+                        {'role': 'user', 'content': f'请根据以下内容生成一个合适的文件名：\n\n{req.content}\n\n请直接输出文件名，不要有其他说明文字，不要包含扩展名。'}
+                    ],
+                    'stream': False
+                }
+            )
+            data = response.json()
+            if 'choices' in data and len(data['choices']) > 0:
+                filename = data['choices'][0]['message']['content'].strip()
+                return {"filename": filename}
+            else:
+                return {"error": "无法生成文件名"}
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == '__main__':
     import uvicorn

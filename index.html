@@ -201,9 +201,105 @@
         .output-pair {
             margin-bottom: 15px;
         }
+        .placeholder {
+            color: #e53e3e;
+            font-weight: 600;
+            background: #fff5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .log-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 450px;
+            height: 400px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            resize: both;
+            overflow: hidden;
+            min-width: 300px;
+            min-height: 200px;
+            max-width: 90vw;
+            max-height: 90vh;
+        }
+        .log-panel.minimized {
+            width: 200px;
+            height: auto;
+            resize: none;
+        }
+        .log-header {
+            padding: 12px 15px;
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+        }
+        .log-header-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        .log-content {
+            padding: 10px;
+            flex: 1;
+            overflow-y: auto;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+        .log-panel.minimized .log-content {
+            display: none;
+        }
+        .log-entry {
+            padding: 8px;
+            margin-bottom: 6px;
+            background: #f7fafc;
+            border-radius: 4px;
+            border-left: 3px solid #667eea;
+        }
+        .log-time {
+            color: #718096;
+            font-size: 10px;
+        }
+        .log-action {
+            color: #2d3748;
+            font-weight: 600;
+            margin: 2px 0;
+        }
+        .log-detail {
+            color: #4a5568;
+            font-size: 11px;
+        }
+        .btn-clear {
+            background: transparent;
+            border: 1px solid white;
+            color: white;
+            padding: 4px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
+    <div class="log-panel" id="logPanel">
+        <div class="log-header" id="logHeader">
+            📋 操作日志
+            <div class="log-header-buttons">
+                <button class="btn-clear" onclick="toggleMinimize()">−</button>
+                <button class="btn-clear" onclick="clearLogs()">清空</button>
+            </div>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
     <div class="container">
         <h1>🎓 AI 题库生成器</h1>
 
@@ -229,6 +325,22 @@
         </div>
 
         <div class="section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div class="section-title" style="margin: 0;">📋 系统提示词</div>
+                <button class="small" onclick="resetSystemPrompt()">🔄 还原默认</button>
+            </div>
+            <textarea id="systemPrompt" style="min-height: 200px; font-family: 'Courier New', monospace;"></textarea>
+        </div>
+
+        <div class="section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div class="section-title" style="margin: 0;">📑 目录结构</div>
+                <button class="small" onclick="extractDirectory()">🤖 AI 提取目录</button>
+            </div>
+            <textarea id="directory" placeholder="输入或提取目录结构..." style="min-height: 120px;"></textarea>
+        </div>
+
+        <div class="section">
             <div class="section-title">3️⃣ 输入题目需求</div>
             <div id="inputPairs"></div>
             <div style="display: flex; gap: 10px; margin-top: 10px;">
@@ -237,6 +349,14 @@
                 <button class="small" onclick="importInputs()">📂 导入切分</button>
             </div>
             <input type="file" id="importFile" accept=".json" style="display: none;" onchange="handleImport(event)">
+        </div>
+
+        <div class="section">
+            <div class="section-title">输出文件名</div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="text" id="outputFilename" value="exam_questions" placeholder="输出文件名" style="flex: 1;">
+                <button class="small" onclick="generateFilename()">🤖 AI 生成</button>
+            </div>
         </div>
 
         <div class="section">
@@ -268,6 +388,197 @@
         let inputPairs = [{id: 0, text: ''}];
         let outputPairs = [{id: 0, editable: '', full: ''}];
         let nextId = 1;
+        let defaultSystemPrompt = '';
+
+        // 日志系统
+        function addLog(action, detail = '') {
+            const logs = JSON.parse(localStorage.getItem('aiLogs') || '[]');
+            const log = {
+                time: new Date().toLocaleString('zh-CN'),
+                action,
+                detail
+            };
+            logs.unshift(log);
+            if (logs.length > 50) logs.splice(50);
+            localStorage.setItem('aiLogs', JSON.stringify(logs));
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const logs = JSON.parse(localStorage.getItem('aiLogs') || '[]');
+            const container = document.getElementById('logContent');
+            container.innerHTML = logs.map(log => `
+                <div class="log-entry">
+                    <div class="log-time">${log.time}</div>
+                    <div class="log-action">${log.action}</div>
+                    ${log.detail ? `<div class="log-detail">${log.detail}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function clearLogs() {
+            localStorage.removeItem('aiLogs');
+            renderLogs();
+            addLog('清空日志', '所有日志已清除');
+        }
+
+        function toggleMinimize() {
+            const panel = document.getElementById('logPanel');
+            const btn = event.target;
+            panel.classList.toggle('minimized');
+            btn.textContent = panel.classList.contains('minimized') ? '+' : '−';
+            localStorage.setItem('logMinimized', panel.classList.contains('minimized'));
+        }
+
+        // Drag functionality
+        let isDragging = false;
+        let currentX, currentY, initialX, initialY;
+
+        document.getElementById('logHeader').addEventListener('mousedown', (e) => {
+            isDragging = true;
+            const panel = document.getElementById('logPanel');
+            const rect = panel.getBoundingClientRect();
+            initialX = e.clientX - rect.left;
+            initialY = e.clientY - rect.top;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                e.preventDefault();
+                const panel = document.getElementById('logPanel');
+                panel.style.transform = 'none';
+                panel.style.left = (e.clientX - initialX) + 'px';
+                panel.style.top = (e.clientY - initialY) + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        function getDefaultSystemPrompt() {
+            return `你是一个专业的题库生成助手。请严格按照以下JSON格式生成题目，必须用\`\`\`json代码块包裹：
+
+{{json_example}}
+
+目录结构：
+{{TOP}}
+
+输出格式要求：
+1. 必须使用\`\`\`json代码块包裹JSON内容
+2. JSON格式必须严格符合示例
+3. 所有字段名必须与示例完全一致
+4. 返回格式：{"questions": [...]}
+5. 如果题目没有解析内容，必须生成详细的解析说明
+6. 根据目录结构匹配合适的章节`;
+        }
+
+        function highlightPlaceholders(text) {
+            return text.replace(/\{\{(json_example|TOP)\}\}/g, '<span class="placeholder">{{$1}}</span>');
+        }
+
+        function resetSystemPrompt() {
+            document.getElementById('systemPrompt').value = getDefaultSystemPrompt();
+            addLog('还原系统提示词', '已恢复为默认提示词');
+        }
+
+        async function extractDirectory() {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+
+            const selectedApi = apiConfigs.find(c => c.selected);
+            if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
+                error.textContent = '❌ 请完整填写选中的 API 配置';
+                error.style.display = 'block';
+                addLog('AI提取目录失败', 'API配置不完整');
+                return;
+            }
+
+            const allInputs = inputPairs.map(p => p.text).filter(t => t.trim()).join('\n\n');
+            if (!allInputs) {
+                error.textContent = '❌ 请先输入题目需求';
+                error.style.display = 'block';
+                addLog('AI提取目录失败', '输入内容为空');
+                return;
+            }
+
+            addLog('AI提取目录', `使用模型: ${selectedApi.model}`);
+            try {
+                const response = await fetch('/api/extract-directory', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiUrl: selectedApi.url,
+                        apiKey: selectedApi.key,
+                        model: selectedApi.model,
+                        content: allInputs
+                    })
+                });
+
+                const data = await response.json();
+                if (data.directory) {
+                    document.getElementById('directory').value = data.directory;
+                    addLog('AI提取目录成功', `提取了 ${data.directory.split('\n').length} 行目录`);
+                } else if (data.error) {
+                    error.textContent = '❌ ' + data.error;
+                    error.style.display = 'block';
+                    addLog('AI提取目录失败', data.error);
+                }
+            } catch (e) {
+                error.textContent = `❌ 提取失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('AI提取目录异常', e.message);
+            }
+        }
+
+        async function generateFilename() {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+
+            const selectedApi = apiConfigs.find(c => c.selected);
+            if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
+                error.textContent = '❌ 请完整填写选中的 API 配置';
+                error.style.display = 'block';
+                addLog('AI生成文件名失败', 'API配置不完整');
+                return;
+            }
+
+            const allInputs = inputPairs.map(p => p.text).filter(t => t.trim()).join('\n\n');
+            if (!allInputs) {
+                error.textContent = '❌ 请先输入题目需求';
+                error.style.display = 'block';
+                addLog('AI生成文件名失败', '输入内容为空');
+                return;
+            }
+
+            addLog('AI生成文件名', `使用模型: ${selectedApi.model}`);
+            try {
+                const response = await fetch('/api/generate-filename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiUrl: selectedApi.url,
+                        apiKey: selectedApi.key,
+                        model: selectedApi.model,
+                        content: allInputs
+                    })
+                });
+
+                const data = await response.json();
+                if (data.filename) {
+                    document.getElementById('outputFilename').value = data.filename;
+                    addLog('AI生成文件名成功', `文件名: ${data.filename}`);
+                } else if (data.error) {
+                    error.textContent = '❌ ' + data.error;
+                    error.style.display = 'block';
+                    addLog('AI生成文件名失败', data.error);
+                }
+            } catch (e) {
+                error.textContent = `❌ 生成失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('AI生成文件名异常', e.message);
+            }
+        }
 
         async function loadEncryptionKey() {
             const response = await fetch('/api/encryption-key');
@@ -336,20 +647,24 @@
         function addApiConfig() {
             apiConfigs.push({name: '新配置', url: '', key: '', model: '', selected: false});
             renderApiConfigs();
+            addLog('添加API配置', '新增了一个API配置');
         }
 
         function deleteConfig(idx) {
+            const configName = apiConfigs[idx].name;
             apiConfigs.splice(idx, 1);
             if (apiConfigs.length === 0) {
                 addApiConfig();
             }
             saveConfigs();
             renderApiConfigs();
+            addLog('删除API配置', `删除了配置: ${configName}`);
         }
 
         function selectApi(idx) {
             apiConfigs.forEach((c, i) => c.selected = i === idx);
             saveConfigs();
+            addLog('切换API配置', `选择了配置: ${apiConfigs[idx].name}`);
         }
 
         function updateConfig(idx, field, value) {
@@ -371,6 +686,7 @@
             outputPairs.push({id: inputPairs[inputPairs.length - 1].id, editable: '', full: ''});
             renderInputPairs();
             renderOutputPairs();
+            addLog('添加输入框', `当前共 ${inputPairs.length} 个输入框`);
         }
 
         function deleteInputPair(id) {
@@ -380,6 +696,7 @@
                 outputPairs.splice(idx, 1);
                 renderInputPairs();
                 renderOutputPairs();
+                addLog('删除输入框', `剩余 ${inputPairs.length} 个输入框`);
             }
         }
 
@@ -400,6 +717,7 @@
 
             renderInputPairs();
             renderOutputPairs();
+            addLog('切分输入框', `输入 #${id + 1} 已切分为两部分`);
 
             setTimeout(() => {
                 const firstTextarea = document.querySelector(`#input-${id}`);
@@ -461,6 +779,7 @@
             a.download = 'split_inputs.json';
             a.click();
             URL.revokeObjectURL(url);
+            addLog('导出切分', `导出了 ${inputPairs.length} 个输入`);
         }
 
         function importInputs() {
@@ -479,8 +798,10 @@
                     nextId = inputPairs.length;
                     renderInputPairs();
                     renderOutputPairs();
+                    addLog('导入切分', `导入了 ${inputPairs.length} 个输入`);
                 } catch (err) {
                     alert('导入失败: ' + err.message);
+                    addLog('导入切分失败', err.message);
                 }
             };
             reader.readAsText(file);
@@ -493,8 +814,10 @@
                 const type = btn.dataset.type;
                 if (selectedTypes.includes(type)) {
                     selectedTypes = selectedTypes.filter(t => t !== type);
+                    addLog('取消题型', type);
                 } else {
                     selectedTypes.push(type);
+                    addLog('选择题型', type);
                 }
                 setCookie('questionTypes', encrypt(JSON.stringify(selectedTypes)));
             });
@@ -518,6 +841,9 @@
             if (editableEl) editableEl.value = '';
 
             const isStreaming = document.getElementById('streamToggle').checked;
+            const systemPrompt = document.getElementById('systemPrompt').value;
+
+            addLog(`AI生成题目 #${pairId + 1}`, `模型: ${selectedApi.model}, 题型: ${selectedTypes.join(', ')}, 流式: ${isStreaming ? '是' : '否'}`);
 
             const response = await fetch('/api/generate', {
                 method: 'POST',
@@ -527,7 +853,9 @@
                     apiKey: selectedApi.key,
                     model: selectedApi.model,
                     questionTypes: selectedTypes,
-                    userInput
+                    userInput,
+                    systemPrompt: systemPrompt,
+                    directory: document.getElementById('directory').value
                 })
             });
 
@@ -579,6 +907,10 @@
                     if (editableEl) editableEl.value = jsonContent;
                 }
             }
+
+            const jsonContent = extractJSON(fullText);
+            const questionCount = jsonContent ? (JSON.parse(jsonContent).questions || []).length : 0;
+            addLog(`AI生成完成 #${pairId + 1}`, `生成了 ${questionCount} 道题目, 总字符: ${fullText.length}`);
         }
 
         async function regenerateSingle(pairId) {
@@ -589,12 +921,14 @@
             if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
                 error.textContent = '❌ 请完整填写选中的 API 配置';
                 error.style.display = 'block';
+                addLog('重新生成失败', 'API配置不完整');
                 return;
             }
 
             if (selectedTypes.length === 0) {
                 error.textContent = '❌ 请选择题型';
                 error.style.display = 'block';
+                addLog('重新生成失败', '未选择题型');
                 return;
             }
 
@@ -602,14 +936,17 @@
             if (!pair || !pair.text.trim()) {
                 error.textContent = '❌ 输入内容为空';
                 error.style.display = 'block';
+                addLog('重新生成失败', '输入内容为空');
                 return;
             }
 
+            addLog(`重新生成 #${pairId + 1}`, '开始重新生成题目');
             try {
                 await generateSingle(pairId, pair.text);
             } catch (e) {
                 error.textContent = `❌ 错误: ${e.message}`;
                 error.style.display = 'block';
+                addLog(`重新生成异常 #${pairId + 1}`, e.message);
             }
         }
 
@@ -626,12 +963,14 @@
             if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
                 error.textContent = '❌ 请完整填写选中的 API 配置';
                 error.style.display = 'block';
+                addLog('批量生成失败', 'API配置不完整');
                 return;
             }
 
             if (selectedTypes.length === 0) {
                 error.textContent = '❌ 请选择题型';
                 error.style.display = 'block';
+                addLog('批量生成失败', '未选择题型');
                 return;
             }
 
@@ -639,15 +978,19 @@
             if (!hasInput) {
                 error.textContent = '❌ 请至少输入一个需求';
                 error.style.display = 'block';
+                addLog('批量生成失败', '输入内容为空');
                 return;
             }
 
             generateBtn.disabled = true;
+            const validInputCount = inputPairs.filter(p => p.text.trim()).length;
+            addLog('开始批量生成', `共 ${validInputCount} 个输入, 题型: ${selectedTypes.join(', ')}`);
 
             const promises = inputPairs.map(pair => {
                 if (!pair.text.trim()) return Promise.resolve();
                 return generateSingle(pair.id, pair.text).catch(e => {
                     console.error(`生成失败 (输入 #${pair.id + 1}):`, e);
+                    addLog(`生成异常 #${pair.id + 1}`, e.message);
                 });
             });
 
@@ -655,6 +998,7 @@
 
             generateBtn.disabled = false;
             exportBtn.disabled = false;
+            addLog('批量生成完成', `所有 ${validInputCount} 个输入已处理完成`);
         }
 
         async function exportExcel() {
@@ -676,8 +1020,12 @@
                 if (allQuestions.length === 0) {
                     error.textContent = '❌ 没有可导出的题目';
                     error.style.display = 'block';
+                    addLog('导出Excel失败', '没有可导出的题目');
                     return;
                 }
+
+                const filename = document.getElementById('outputFilename').value || 'exam_questions';
+                addLog('开始导出Excel', `文件名: ${filename}, 题目数: ${allQuestions.length}`);
 
                 const response = await fetch('/api/export', {
                     method: 'POST',
@@ -689,12 +1037,14 @@
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'exam_questions.xlsx';
+                a.download = `${filename}.xlsx`;
                 a.click();
                 window.URL.revokeObjectURL(url);
+                addLog('导出Excel成功', `已导出 ${allQuestions.length} 道题目到 ${filename}.xlsx`);
             } catch (e) {
                 error.textContent = `❌ 导出失败: ${e.message}`;
                 error.style.display = 'block';
+                addLog('导出Excel异常', e.message);
             }
         }
 
@@ -703,6 +1053,8 @@
             loadConfigs();
             renderInputPairs();
             renderOutputPairs();
+            resetSystemPrompt();
+            renderLogs();
 
             const savedTypes = getCookie('questionTypes');
             if (savedTypes) {
@@ -714,6 +1066,14 @@
                     });
                 }
             }
+
+            const isMinimized = localStorage.getItem('logMinimized') === 'true';
+            if (isMinimized) {
+                document.getElementById('logPanel').classList.add('minimized');
+                document.querySelector('.log-header-buttons button').textContent = '+';
+            }
+
+            addLog('页面加载', '系统初始化完成');
         };
     </script>
 </body>
