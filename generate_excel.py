@@ -9,6 +9,63 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 
+# 固定表头（永远不变）
+HEADERS = [
+    "题干（必填）",
+    "题型 （必填）",
+    "选项 A",
+    "选项 B",
+    "选项 C",
+    "选项 D",
+    "选项E\n(勿删)",
+    "选项F\n(勿删)",
+    "选项G\n(勿删)",
+    "选项H\n(勿删)",
+    "正确答案\n（必填）",
+    "解析\n（勿删）",
+    "章节\n（勿删）",
+    "难度"
+]
+
+# 选项字母到表头的映射
+OPTION_MAPPING = {
+    'A': "选项 A",
+    'B': "选项 B",
+    'C': "选项 C",
+    'D': "选项 D",
+    'E': "选项E\n(勿删)",
+    'F': "选项F\n(勿删)",
+    'G': "选项G\n(勿删)",
+    'H': "选项H\n(勿删)"
+}
+
+
+def match_option(letter, question):
+    """
+    根据字母匹配对应选项内容
+
+    参数:
+        letter: 选项字母 (A, B, C, D, E, F, G, H)
+        question: 题目字典
+
+    返回:
+        选项内容，如果不存在返回 None
+    """
+    letter = letter.upper()
+    # 尝试多种可能的键格式
+    possible_keys = [
+        OPTION_MAPPING.get(letter),  # 标准格式
+        f"选项 {letter}\n(勿删)",     # 带空格+完整后缀
+        f"选项 {letter}",             # 带空格
+        f"选项{letter}"               # 不带空格
+    ]
+    for key in possible_keys:
+        if key:
+            value = question.get(key)
+            if value:
+                return value
+    return None
+
 
 def load_json_data(json_file):
     """加载JSON数据"""
@@ -34,29 +91,11 @@ def create_excel_from_json(json_file, output_file):
     ws = wb.active
     ws.title = "题库（答案请直接导入）"
 
-    # 定义表头
-    headers = [
-        "题干（必填）",
-        "题型 （必填）",
-        "选项 A",
-        "选项 B",
-        "选项 C",
-        "选项 D",
-        "选项E\n(勿删)",
-        "选项F\n(勿删)",
-        "选项G\n(勿删)",
-        "选项H\n(勿删)",
-        "正确答案\n（必填）",
-        "解析\n（勿删）",
-        "章节\n（勿删）",
-        "难度"
-    ]
-
     # 写入表头并设置样式
-    setup_header(ws, headers)
+    setup_header(ws, HEADERS)
 
     # 写入数据
-    write_data(ws, questions, headers)
+    write_data(ws, questions, HEADERS)
 
     # 调整列宽
     adjust_column_width(ws)
@@ -108,16 +147,13 @@ def write_data(ws, questions, headers):
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row=row_idx, column=col_idx)
 
-            # 尝试多种可能的键格式
+            # 使用match_option函数匹配选项
             value = question.get(header)
-            if value is None and header == "选项E\n(勿删)":
-                value = question.get("选项 E") or question.get("选项E")
-            elif value is None and header == "选项F\n(勿删)":
-                value = question.get("选项 F") or question.get("选项F")
-            elif value is None and header == "选项G\n(勿删)":
-                value = question.get("选项 G") or question.get("选项G")
-            elif value is None and header == "选项H\n(勿删)":
-                value = question.get("选项 H") or question.get("选项H")
+            if value is None and header in OPTION_MAPPING.values():
+                for letter, mapped_header in OPTION_MAPPING.items():
+                    if header == mapped_header:
+                        value = match_option(letter, question)
+                        break
 
             cell.value = value
             cell.font = Font(name='宋体', size=11)

@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 .claude/
 1
+output/
+demo_questions copy.json
