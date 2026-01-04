@@ -3,7 +3,7 @@
 import json
 import httpx
 from utils import load_system_prompt
-from config import DIRECTORY_EXTRACTION_PROMPT, FILENAME_GENERATION_PROMPT
+from config import DIRECTORY_EXTRACTION_PROMPT, FILENAME_GENERATION_PROMPT, COMPARE_PROMPT
 
 
 async def call_ai_api(api_url, api_key, model, system_prompt, user_prompt):
@@ -76,3 +76,29 @@ async def generate_filename(api_url, api_key, model, content):
     """使用 AI 生成文件名"""
     user_prompt = f'请根据以下内容生成一个合适的文件名：\n\n{content}\n\n请直接输出文件名，不要有其他说明文字，不要包含扩展名。'
     return await call_ai_api(api_url, api_key, model, FILENAME_GENERATION_PROMPT, user_prompt)
+
+
+async def compare_files_stream(api_url, api_key, model, file_a, file_b):
+    """流式对比两份文件"""
+    prompt = COMPARE_PROMPT.replace('{file_a}', file_a).replace('{file_b}', file_b)
+
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        async with client.stream(
+            'POST',
+            f"{api_url}/chat/completions",
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json={'model': model, 'messages': [{'role': 'user', 'content': prompt}], 'stream': True}
+        ) as response:
+            async for line in response.aiter_lines():
+                if line.startswith('data: '):
+                    data = line[6:]
+                    if data.strip() == '[DONE]':
+                        break
+                    try:
+                        chunk = json.loads(data)
+                        if 'choices' in chunk and len(chunk['choices']) > 0:
+                            delta = chunk['choices'][0].get('delta', {})
+                            if 'content' in delta:
+                                yield f"data: {json.dumps({'text': delta['content']}, ensure_ascii=False)}\n\n"
+                    except:
+                        pass

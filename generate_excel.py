@@ -107,7 +107,19 @@ def write_data(ws, questions, headers):
     for row_idx, question in enumerate(questions, 2):
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row=row_idx, column=col_idx)
-            cell.value = question.get(header)
+
+            # 尝试多种可能的键格式
+            value = question.get(header)
+            if value is None and header == "选项E\n(勿删)":
+                value = question.get("选项 E") or question.get("选项E")
+            elif value is None and header == "选项F\n(勿删)":
+                value = question.get("选项 F") or question.get("选项F")
+            elif value is None and header == "选项G\n(勿删)":
+                value = question.get("选项 G") or question.get("选项G")
+            elif value is None and header == "选项H\n(勿删)":
+                value = question.get("选项 H") or question.get("选项H")
+
+            cell.value = value
             cell.font = Font(name='宋体', size=11)
             cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
             cell.border = thin_border

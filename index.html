@@ -378,6 +378,35 @@
         <div class="actions">
             <button id="exportBtn" onclick="exportExcel()" disabled>📥 导出 Excel</button>
         </div>
+
+        <div class="section">
+            <div class="section-title">5️⃣ AB 对比审核</div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="removeNullToggle" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <span style="font-size: 14px; color: #2d3748;">去除 null 值</span>
+                </label>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div>
+                    <div style="font-size: 14px; color: #718096; margin-bottom: 8px; font-weight: 600;">📄 文件 A（生成的题目）</div>
+                    <textarea id="fileA" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..."></textarea>
+                </div>
+                <div>
+                    <div style="font-size: 14px; color: #718096; margin-bottom: 8px; font-weight: 600;">📋 文件 B（原始需求）</div>
+                    <textarea id="fileB" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..."></textarea>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button class="small" onclick="generateFileA()">生成文件 A</button>
+                <button class="small" onclick="generateFileB()">生成文件 B</button>
+                <button id="compareBtn" onclick="compareFiles()" disabled>🔍 AI 对比分析</button>
+            </div>
+            <div>
+                <div style="font-size: 14px; color: #718096; margin-bottom: 8px; font-weight: 600;">📊 对比结果</div>
+                <div class="output" id="compareResult">等待对比...</div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1035,6 +1064,142 @@
                 error.textContent = `❌ 导出失败: ${e.message}`;
                 error.style.display = 'block';
                 addLog('导出Excel异常', e.message);
+            }
+        }
+
+        function removeNullValues(obj) {
+            if (Array.isArray(obj)) {
+                return obj.map(item => removeNullValues(item));
+            } else if (obj !== null && typeof obj === 'object') {
+                const newObj = {};
+                for (const key in obj) {
+                    if (obj[key] !== null) {
+                        newObj[key] = removeNullValues(obj[key]);
+                    }
+                }
+                return newObj;
+            }
+            return obj;
+        }
+
+        function generateFileA() {
+            try {
+                let allQuestions = [];
+                for (const pair of outputPairs) {
+                    const textarea = document.getElementById(`editable-${pair.id}`);
+                    if (textarea && textarea.value.trim()) {
+                        const jsonData = JSON.parse(textarea.value);
+                        const questions = jsonData.questions || [];
+                        allQuestions = allQuestions.concat(questions);
+                    }
+                }
+
+                if (allQuestions.length === 0) {
+                    alert('❌ 没有可生成的题目');
+                    return;
+                }
+
+                const removeNull = document.getElementById('removeNullToggle').checked;
+                let result = { questions: allQuestions };
+                if (removeNull) {
+                    result = removeNullValues(result);
+                }
+
+                document.getElementById('fileA').value = JSON.stringify(result, null, 2);
+                document.getElementById('compareBtn').disabled = false;
+                addLog('生成文件A', `题目数: ${allQuestions.length}, 去除null: ${removeNull ? '是' : '否'}`);
+            } catch (e) {
+                alert(`❌ 生成失败: ${e.message}`);
+                addLog('生成文件A失败', e.message);
+            }
+        }
+
+        function generateFileB() {
+            const allInputs = inputPairs.map(p => p.text).filter(t => t.trim()).join('\n\n');
+            if (!allInputs) {
+                alert('❌ 没有输入内容');
+                return;
+            }
+
+            document.getElementById('fileB').value = allInputs;
+            document.getElementById('compareBtn').disabled = false;
+            addLog('生成文件B', `输入数: ${inputPairs.filter(p => p.text.trim()).length}`);
+        }
+
+        async function compareFiles() {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+
+            const selectedApi = apiConfigs.find(c => c.selected);
+            if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
+                error.textContent = '❌ 请完整填写选中的 API 配置';
+                error.style.display = 'block';
+                addLog('AI对比失败', 'API配置不完整');
+                return;
+            }
+
+            const fileA = document.getElementById('fileA').value.trim();
+            const fileB = document.getElementById('fileB').value.trim();
+
+            if (!fileA || !fileB) {
+                error.textContent = '❌ 请先生成文件 A 和文件 B';
+                error.style.display = 'block';
+                addLog('AI对比失败', '文件内容为空');
+                return;
+            }
+
+            const compareBtn = document.getElementById('compareBtn');
+            const resultEl = document.getElementById('compareResult');
+            compareBtn.disabled = true;
+            resultEl.textContent = '正在对比分析中...\n\n';
+
+            addLog('开始AI对比', `模型: ${selectedApi.model}`);
+
+            try {
+                const response = await fetch('/api/compare', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiUrl: selectedApi.url,
+                        apiKey: selectedApi.key,
+                        model: selectedApi.model,
+                        fileA: fileA,
+                        fileB: fileB
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.error) {
+                                throw new Error(data.error);
+                            } else if (data.text) {
+                                fullText += data.text;
+                                resultEl.textContent = fullText;
+                                resultEl.scrollTop = resultEl.scrollHeight;
+                            }
+                        }
+                    }
+                }
+
+                addLog('AI对比完成', `输出字符数: ${fullText.length}`);
+            } catch (e) {
+                error.textContent = `❌ 对比失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('AI对比异常', e.message);
+            } finally {
+                compareBtn.disabled = false;
             }
         }
 

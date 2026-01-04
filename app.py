@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from pydantic import BaseModel
 import os
 from utils import get_or_create_key
-from ai_service import generate_questions_stream, extract_directory, generate_filename
+from ai_service import generate_questions_stream, extract_directory, generate_filename, compare_files_stream
 from excel_service import export_to_excel
 
 app = FastAPI()
@@ -32,6 +32,14 @@ class AIRequest(BaseModel):
     apiKey: str
     model: str
     content: str
+
+
+class CompareRequest(BaseModel):
+    apiUrl: str
+    apiKey: str
+    model: str
+    fileA: str
+    fileB: str
 
 
 async def handle_ai_request(ai_func, req: AIRequest, result_key: str, error_msg: str):
@@ -92,6 +100,28 @@ async def generate_filename_endpoint(req: AIRequest):
     return await handle_ai_request(generate_filename, req, "filename", "无法生成文件名")
 
 
+@app.post("/api/compare")
+async def compare_files(req: CompareRequest):
+    async def generate():
+        try:
+            async for chunk in compare_files_stream(req.apiUrl, req.apiKey, req.model, req.fileA, req.fileB):
+                yield chunk
+        except Exception as e:
+            yield f"data: {{'error': '{str(e)}'}}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
 if __name__ == '__main__':
-    import uvicorn
-    uvicorn.run(app, host='0.0.0.0', port=8000)
+    import sys
+
+    # 检查是否使用 hypercorn（支持 HTTP/2）
+    if '--http2' in sys.argv:
+        print("🚀 启动 HTTP/2 服务器（支持无限并发连接）...")
+        import os
+        os.system('hypercorn app:app --bind 0.0.0.0:8000')
+    else:
+        print("🚀 启动 HTTP/1.1 服务器（最多 6 个并发连接）...")
+        print("💡 提示：使用 'python app.py --http2' 启用 HTTP/2 支持")
+        import uvicorn
+        uvicorn.run(app, host='0.0.0.0', port=8000)
