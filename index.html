@@ -456,29 +456,19 @@
             isDragging = false;
         });
 
-        function getDefaultSystemPrompt() {
-            return `你是一个专业的题库生成助手。请严格按照以下JSON格式生成题目，必须用\`\`\`json代码块包裹：
-
-{{json_example}}
-
-目录结构：
-{{TOP}}
-
-输出格式要求：
-1. 必须使用\`\`\`json代码块包裹JSON内容
-2. JSON格式必须严格符合示例
-3. 所有字段名必须与示例完全一致
-4. 返回格式：{"questions": [...]}
-5. 如果题目没有解析内容，必须生成详细的解析说明
-6. 根据目录结构匹配合适的章节`;
-        }
-
-        function highlightPlaceholders(text) {
-            return text.replace(/\{\{(json_example|TOP)\}\}/g, '<span class="placeholder">{{$1}}</span>');
+        async function loadSystemPrompt() {
+            try {
+                const response = await fetch('/api/system-prompt');
+                const data = await response.json();
+                defaultSystemPrompt = data.systemPrompt;
+                document.getElementById('systemPrompt').value = defaultSystemPrompt;
+            } catch (e) {
+                console.error('加载系统提示词失败:', e);
+            }
         }
 
         function resetSystemPrompt() {
-            document.getElementById('systemPrompt').value = getDefaultSystemPrompt();
+            document.getElementById('systemPrompt').value = defaultSystemPrompt;
             addLog('还原系统提示词', '已恢复为默认提示词');
         }
 
@@ -1053,7 +1043,7 @@
             loadConfigs();
             renderInputPairs();
             renderOutputPairs();
-            resetSystemPrompt();
+            await loadSystemPrompt();
             renderLogs();
 
             const savedTypes = getCookie('questionTypes');
