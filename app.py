@@ -10,6 +10,7 @@ from utils import get_or_create_key
 from ai_service import generate_questions_stream, extract_directory, generate_filename, compare_files_stream
 from excel_service import export_to_excel
 from logger import log_api_call
+from header_utils import get_question_type
 
 app = FastAPI()
 
@@ -138,12 +139,7 @@ async def get_question_types():
             data = json.load(f)
             types = []
             for q in data.get('questions', []):
-                # 查找第一个包含"题型"的键
-                question_type = None
-                for key, value in q.items():
-                    if '题型' in key:
-                        question_type = value
-                        break
+                question_type = get_question_type(q)
                 if question_type:
                     types.append(question_type)
             # 如果出现重复，添加提示

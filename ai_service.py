@@ -4,6 +4,7 @@ import json
 import httpx
 from utils import load_system_prompt
 from config import DIRECTORY_EXTRACTION_PROMPT, FILENAME_GENERATION_PROMPT, COMPARE_PROMPT
+from header_utils import get_question_type
 
 
 async def call_ai_api(api_url, api_key, model, system_prompt, user_prompt):
@@ -34,7 +35,7 @@ async def generate_questions_stream(api_url, api_key, model, question_types, use
 
     examples_text = ""
     for qtype in question_types:
-        examples = [q for q in demo_data['questions'] if q.get('题型 （必填）') == qtype]
+        examples = [q for q in demo_data['questions'] if get_question_type(q) == qtype]
         if examples:
             examples_text += f"\n{qtype}示例：\n{json.dumps(examples[0], ensure_ascii=False, indent=2)}\n"
 
