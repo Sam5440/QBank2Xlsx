@@ -136,10 +136,26 @@ async def get_question_types():
     try:
         with open('demo_questions.json', 'r', encoding='utf-8') as f:
             data = json.load(f)
-            types = list(set(q.get('题型 （必填）') for q in data.get('questions', []) if q.get('题型 （必填）')))
-            return {"questionTypes": types, "sampleData": data}
+            types = []
+            for q in data.get('questions', []):
+                # 查找第一个包含"题型"的键
+                question_type = None
+                for key, value in q.items():
+                    if '题型' in key:
+                        question_type = value
+                        break
+                if question_type:
+                    types.append(question_type)
+            # 如果出现重复，添加提示
+            notice_tip = None
+            if len(types) != len(set(types)):
+                same_types = [t for t in types if types.count(t) > 1]
+                notice_tip = f"（重复题型出现！！！可能无法正常匹配！）[{', '.join(same_types)}]"
+            # 去重
+            types = list(set(types))
+            return {"questionTypes": types, "sampleData": data, "noticeTip": notice_tip}
     except Exception as e:
-        return {"error": str(e), "questionTypes": [], "sampleData": {}}
+        return {"error": str(e), "questionTypes": [], "sampleData": {}, "noticeTip": None}
 
 
 @app.post("/api/generate")

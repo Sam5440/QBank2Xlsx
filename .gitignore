@@ -6,3 +6,4 @@ __pycache__/
 1
 output/
 demo_questions copy.json
+log/api.log
