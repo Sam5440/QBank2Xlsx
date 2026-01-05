@@ -165,7 +165,7 @@ async def generate_questions(req: GenerateRequest):
             async for chunk in generate_questions_stream(req.apiUrl, req.apiKey, req.model, req.questionTypes, req.userInput, req.systemPrompt, req.directory):
                 yield chunk
         except Exception as e:
-            yield f"data: {{'error': '{str(e)}'}}\n\n"
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -197,7 +197,7 @@ async def compare_files(req: CompareRequest):
             async for chunk in compare_files_stream(req.apiUrl, req.apiKey, req.model, req.fileA, req.fileB):
                 yield chunk
         except Exception as e:
-            yield f"data: {{'error': '{str(e)}'}}\n\n"
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

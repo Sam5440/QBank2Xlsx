@@ -34,7 +34,7 @@ async def generate_questions_stream(api_url, api_key, model, question_types, use
 
     examples_text = ""
     for qtype in question_types:
-        examples = [q for q in demo_data['questions'] if q['题型 （必填）'] == qtype]
+        examples = [q for q in demo_data['questions'] if q.get('题型 （必填）') == qtype]
         if examples:
             examples_text += f"\n{qtype}示例：\n{json.dumps(examples[0], ensure_ascii=False, indent=2)}\n"
 
