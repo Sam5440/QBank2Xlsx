@@ -14,8 +14,8 @@ if errorlevel 1 (
 
 echo [2/2] 启动服务器...
 echo.
-echo 服务器地址: http://localhost:8000
+echo 服务器地址: http://localhost:8111
 echo 按 Ctrl+C 停止服务器
 echo.
-start http://localhost:8000
+start http://localhost:8111
 python app.py --http2

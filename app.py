@@ -68,6 +68,18 @@ async def get_system_prompt():
     return {"systemPrompt": load_system_prompt()}
 
 
+@app.get("/api/question-types")
+async def get_question_types():
+    import json
+    try:
+        with open('demo_questions.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            types = list(set(q.get('题型 （必填）') for q in data.get('questions', []) if q.get('题型 （必填）')))
+            return {"questionTypes": types, "sampleData": data}
+    except Exception as e:
+        return {"error": str(e), "questionTypes": [], "sampleData": {}}
+
+
 @app.post("/api/generate")
 async def generate_questions(req: GenerateRequest):
     async def generate():
@@ -117,11 +129,11 @@ if __name__ == '__main__':
 
     # 检查是否使用 hypercorn（支持 HTTP/2）
     if '--http2' in sys.argv:
-        print("🚀 启动 HTTP/2 服务器（支持无限并发连接）...")
+        print("启动 HTTP/2 服务器（支持无限并发连接）...")
         import os
-        os.system('hypercorn app:app --bind 0.0.0.0:8000')
+        os.system('hypercorn app:app --bind 0.0.0.0:8111')
     else:
-        print("🚀 启动 HTTP/1.1 服务器（最多 6 个并发连接）...")
-        print("💡 提示：使用 'python app.py --http2' 启用 HTTP/2 支持")
+        print("启动 HTTP/1.1 服务器（最多 6 个并发连接）...")
+        print("提示：使用 'python app.py --http2' 启用 HTTP/2 支持")
         import uvicorn
-        uvicorn.run(app, host='0.0.0.0', port=8000)
+        uvicorn.run(app, host='0.0.0.0', port=8111)

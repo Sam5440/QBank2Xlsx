@@ -303,6 +303,53 @@
             cursor: pointer;
             border-radius: 4px;
         }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 80%;
+            max-width: 900px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2d3748;
+        }
+        .close-btn {
+            font-size: 28px;
+            font-weight: bold;
+            color: #718096;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            line-height: 1;
+        }
+        .close-btn:hover {
+            color: #2d3748;
+        }
     </style>
 </head>
 <body>
@@ -320,17 +367,12 @@
         <h1>🎓 AI 题库生成器</h1>
 
         <div class="section">
-            <div class="section-title">1️⃣ 选择题型（可多选）</div>
-            <div class="question-types">
-                <button class="type-btn" data-type="单选题">单选题</button>
-                <button class="type-btn" data-type="多选题">多选题</button>
-                <button class="type-btn" data-type="不定项选择题">不定项选择题</button>
-                <button class="type-btn" data-type="判断题">判断题</button>
-                <button class="type-btn" data-type="填空题">填空题</button>
-                <button class="type-btn" data-type="简答题">简答题</button>
-                <button class="type-btn" data-type="排序题">排序题</button>
-                <button class="type-btn" data-type="计算题">计算题</button>
-                <button class="type-btn" data-type="论述题">论述题</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div class="section-title" style="margin: 0;">1️⃣ 选择题型（可多选）</div>
+                <button class="small" onclick="previewJSON('questionTypes')">📋 预览 JSON</button>
+            </div>
+            <div class="question-types" id="questionTypesContainer">
+                <div style="color: #718096; padding: 20px; text-align: center;">加载中...</div>
             </div>
         </div>
 
@@ -426,6 +468,16 @@
         </div>
     </div>
 
+    <div id="jsonModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">JSON 预览</div>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="output" id="modalContent" style="max-height: 60vh;"></div>
+        </div>
+    </div>
+
     <script>
         let selectedTypes = [];
         let generatedJSON = '';
@@ -435,6 +487,7 @@
         let outputPairs = [{id: 0, editable: '', full: ''}];
         let nextId = 1;
         let defaultSystemPrompt = '';
+        let sampleData = {};
 
         // 日志系统
         function addLog(action, detail = '') {
@@ -510,6 +563,88 @@
                 document.getElementById('systemPrompt').value = defaultSystemPrompt;
             } catch (e) {
                 console.error('加载系统提示词失败:', e);
+            }
+        }
+
+        async function loadQuestionTypes() {
+            try {
+                const response = await fetch('/api/question-types');
+                const data = await response.json();
+
+                if (data.error) {
+                    document.getElementById('questionTypesContainer').innerHTML =
+                        `<div style="color: #e53e3e; padding: 20px; text-align: center;">加载失败: ${data.error}</div>`;
+                    return;
+                }
+
+                sampleData = data.sampleData;
+                const types = data.questionTypes || [];
+
+                if (types.length === 0) {
+                    document.getElementById('questionTypesContainer').innerHTML =
+                        '<div style="color: #718096; padding: 20px; text-align: center;">未找到题型</div>';
+                    return;
+                }
+
+                const container = document.getElementById('questionTypesContainer');
+                container.innerHTML = types.map(type =>
+                    `<button class="type-btn" data-type="${type}">${type}</button>`
+                ).join('');
+
+                document.querySelectorAll('.type-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        btn.classList.toggle('active');
+                        const type = btn.dataset.type;
+                        if (selectedTypes.includes(type)) {
+                            selectedTypes = selectedTypes.filter(t => t !== type);
+                            addLog('取消题型', type);
+                        } else {
+                            selectedTypes.push(type);
+                            addLog('选择题型', type);
+                        }
+                        setCookie('questionTypes', encrypt(JSON.stringify(selectedTypes)));
+                    });
+                });
+
+                const savedTypes = getCookie('questionTypes');
+                if (savedTypes) {
+                    const decrypted = decrypt(savedTypes);
+                    if (decrypted) {
+                        selectedTypes = JSON.parse(decrypted);
+                        selectedTypes.forEach(type => {
+                            document.querySelector(`[data-type="${type}"]`)?.classList.add('active');
+                        });
+                    }
+                }
+
+                addLog('加载题型', `共 ${types.length} 种题型`);
+            } catch (e) {
+                console.error('加载题型失败:', e);
+                document.getElementById('questionTypesContainer').innerHTML =
+                    `<div style="color: #e53e3e; padding: 20px; text-align: center;">加载失败: ${e.message}</div>`;
+            }
+        }
+
+        function previewJSON(section) {
+            const modal = document.getElementById('jsonModal');
+            const content = document.getElementById('modalContent');
+
+            if (section === 'questionTypes') {
+                content.textContent = JSON.stringify(sampleData, null, 2);
+            }
+
+            modal.style.display = 'block';
+            addLog('预览JSON', section);
+        }
+
+        function closeModal() {
+            document.getElementById('jsonModal').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('jsonModal');
+            if (event.target === modal) {
+                closeModal();
             }
         }
 
@@ -850,21 +985,6 @@
             reader.readAsText(file);
             event.target.value = '';
         }
-
-        document.querySelectorAll('.type-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                btn.classList.toggle('active');
-                const type = btn.dataset.type;
-                if (selectedTypes.includes(type)) {
-                    selectedTypes = selectedTypes.filter(t => t !== type);
-                    addLog('取消题型', type);
-                } else {
-                    selectedTypes.push(type);
-                    addLog('选择题型', type);
-                }
-                setCookie('questionTypes', encrypt(JSON.stringify(selectedTypes)));
-            });
-        });
 
         function extractJSON(text) {
             const match = text.match(/```json\s*([\s\S]*?)\s*```/);
@@ -1404,18 +1524,8 @@
             renderInputPairs();
             renderOutputPairs();
             await loadSystemPrompt();
+            await loadQuestionTypes();
             renderLogs();
-
-            const savedTypes = getCookie('questionTypes');
-            if (savedTypes) {
-                const decrypted = decrypt(savedTypes);
-                if (decrypted) {
-                    selectedTypes = JSON.parse(decrypted);
-                    selectedTypes.forEach(type => {
-                        document.querySelector(`[data-type="${type}"]`)?.classList.add('active');
-                    });
-                }
-            }
 
             const isMinimized = localStorage.getItem('logMinimized') === 'true';
             if (isMinimized) {
