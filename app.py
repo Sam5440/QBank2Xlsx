@@ -1,14 +1,67 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from pydantic import BaseModel
 import os
+import time
+import json
 from utils import get_or_create_key
 from ai_service import generate_questions_stream, extract_directory, generate_filename, compare_files_stream
 from excel_service import export_to_excel
+from logger import log_api_call
 
 app = FastAPI()
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+
+    # 读取请求体
+    request_body = None
+    if request.method in ["POST", "PUT", "PATCH"]:
+        try:
+            body = await request.body()
+            if body:
+                request_body = json.loads(body.decode())
+                # 隐藏敏感信息
+                if isinstance(request_body, dict) and 'apiKey' in request_body:
+                    request_body = {**request_body, 'apiKey': '***'}
+        except:
+            pass
+
+    # 调用实际的路由处理
+    response = await call_next(request)
+
+    # 计算耗时
+    duration_ms = int((time.time() - start_time) * 1000)
+
+    # 捕获响应体
+    response_body = None
+    if response.headers.get("content-type") == "application/json":
+        from fastapi.responses import Response
+        body_bytes = b""
+        async for chunk in response.body_iterator:
+            body_bytes += chunk
+        try:
+            response_body = json.loads(body_bytes.decode())
+        except:
+            pass
+        response = Response(content=body_bytes, status_code=response.status_code, headers=dict(response.headers), media_type=response.media_type)
+
+    # 记录日志（排除静态文件）
+    if not request.url.path.startswith('/static'):
+        log_api_call(
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            request_body=request_body,
+            response_body=response_body,
+            duration_ms=duration_ms
+        )
+
+    return response
 
 ENCRYPTION_KEY = get_or_create_key()
 
@@ -46,6 +99,15 @@ async def handle_ai_request(ai_func, req: AIRequest, result_key: str, error_msg:
     """通用 AI 请求处理函数"""
     try:
         result = await ai_func(req.apiUrl, req.apiKey, req.model, req.content)
+        # print(result)
+        log_api_call(
+            method="POST",
+            path="/api/ai",
+            status_code=200,
+            request_body=req.dict(),
+            response_body=result,
+            duration_ms=0
+        )
         return {result_key: result} if result else {"error": error_msg}
     except Exception as e:
         return {"error": str(e)}

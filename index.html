@@ -45,6 +45,11 @@
             grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             gap: 12px;
         }
+        .type-item {
+            display: flex;
+            gap: 4px;
+            align-items: stretch;
+        }
         .type-btn {
             padding: 12px 20px;
             border: 2px solid #cbd5e0;
@@ -56,6 +61,21 @@
             font-weight: 500;
             color: #2d3748;
             text-align: center;
+            flex: 1;
+        }
+        .preview-btn {
+            padding: 8px 12px;
+            border: 2px solid #cbd5e0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            color: #667eea;
+        }
+        .preview-btn:hover {
+            border-color: #667eea;
+            background: #f7fafc;
         }
         .type-btn:hover {
             border-color: #667eea;
@@ -367,10 +387,7 @@
         <h1>🎓 AI 题库生成器</h1>
 
         <div class="section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <div class="section-title" style="margin: 0;">1️⃣ 选择题型（可多选）</div>
-                <button class="small" onclick="previewJSON('questionTypes')">📋 预览 JSON</button>
-            </div>
+            <div class="section-title">1️⃣ 选择题型（可多选）</div>
             <div class="question-types" id="questionTypesContainer">
                 <div style="color: #718096; padding: 20px; text-align: center;">加载中...</div>
             </div>
@@ -588,7 +605,10 @@
 
                 const container = document.getElementById('questionTypesContainer');
                 container.innerHTML = types.map(type =>
-                    `<button class="type-btn" data-type="${type}">${type}</button>`
+                    `<div class="type-item">
+                        <button class="type-btn" data-type="${type}">${type}</button>
+                        <button class="preview-btn" onclick="previewJSON('${type}')">📋</button>
+                    </div>`
                 ).join('');
 
                 document.querySelectorAll('.type-btn').forEach(btn => {
@@ -631,6 +651,12 @@
 
             if (section === 'questionTypes') {
                 content.textContent = JSON.stringify(sampleData, null, 2);
+            } else {
+                // Filter questions by type
+                const filteredData = {
+                    questions: sampleData.questions?.filter(q => q['题型 （必填）'] === section) || []
+                };
+                content.textContent = JSON.stringify(filteredData, null, 2);
             }
 
             modal.style.display = 'block';
