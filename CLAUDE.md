@@ -4,107 +4,131 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an exam question bank management system that converts between Excel and JSON formats. It handles Chinese exam questions with multiple question types including single-choice, multiple-choice, true/false, fill-in-blank, short answer, sorting, calculation, and essay questions.
+QBank2Xlsx is an AI-powered exam question bank management system with a FastAPI backend and web UI. It generates exam questions using AI models (OpenAI, Claude, etc.) and exports them to Excel format. The system handles 9 Chinese question types with streaming generation and real-time preview.
 
-## Core Scripts
+## Running the Application
 
-### generate_excel.py
-Converts JSON question data to Excel format with proper styling and formatting.
+### Start Server (Windows)
+```bash
+start.bat
+```
+Auto-installs dependencies, starts HTTP/2 server on port 8111, opens browser.
 
-**Usage:**
+### Start Server (Manual)
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# HTTP/1.1 mode (max 6 concurrent connections)
+python app.py
+
+# HTTP/2 mode (unlimited concurrent, recommended)
+python app.py --http2
+```
+
+Access at: `http://localhost:8111`
+
+### Standalone Excel Generation
 ```bash
 python generate_excel.py
 ```
+Converts `demo_questions.json` → `generated_exam.xlsx`
 
-**Input:** `demo_questions.json` (or modify the script to use a different JSON file)
-**Output:** `generated_exam.xlsx`
+## Architecture
 
-The script creates a formatted Excel file with:
-- Header row with light blue background (color: B4C7E7)
-- 14 columns matching the question bank schema
-- Proper borders, fonts (宋体), and cell alignment
-- Automatic column width adjustment
+### Core Components
 
-### extract_structure.py
-Analyzes an existing Excel file to extract and display its structure.
+**app.py** - FastAPI application with middleware for logging
+- API endpoints for generation, export, directory extraction, filename generation, file comparison
+- Middleware logs all requests/responses to `log/` directory
+- Supports both HTTP/1.1 (uvicorn) and HTTP/2 (hypercorn) modes
 
-**Usage:**
-```bash
-python extract_structure.py
-```
+**ai_service.py** - AI integration layer
+- `generate_questions_stream()`: Streams question generation from AI with real-time output
+- `extract_directory()`: Extracts chapter/section structure from user input
+- `generate_filename()`: Creates meaningful filenames based on content
+- `compare_files_stream()`: AI-powered comparison of generated vs. original requirements
+- Uses `demo_questions.json` to provide format examples to AI based on selected question types
 
-**Input:** `kaoshibaoExcel20221101.xlsx`
-**Output:** Console output showing table structure and first 15 rows
+**excel_service.py** - Excel export functionality
+- Converts JSON questions to Excel with styling (宋体 font, borders, colors)
+- Creates temporary files for download
 
-### analyze_excel.py
-Extracts all data from an Excel file and saves it as JSON.
+**config.py** - Prompt templates
+- `DEFAULT_SYSTEM_PROMPT`: Main template for question generation (uses `{{json_example}}` and `{{TOP}}` placeholders)
+- `DIRECTORY_EXTRACTION_PROMPT`, `FILENAME_GENERATION_PROMPT`, `COMPARE_PROMPT`
 
-**Usage:**
-```bash
-python analyze_excel.py
-```
+**header_utils.py** - Question type detection
+- `get_question_type()`: Extracts question type from various field name formats
 
-**Input:** `kaoshibaoExcel20221101.xlsx`
-**Output:** `extracted_data.json`
+**logger.py** - Request/response logging
+- Logs API calls to timestamped files in `log/` directory
+
+**utils.py** - Utility functions
+- `get_or_create_key()`: Manages encryption key for API key storage
+- `load_system_prompt()`: Loads system prompt from file or uses default
+
+**index.html** - Single-page web UI
+- Real-time streaming display of generated questions
+- API key encryption using CryptoJS (AES)
+- Question editing, preview, and export functionality
+
+### Data Flow
+
+1. User configures API settings (URL, key, model) in web UI → encrypted and stored in localStorage
+2. User selects question types → system loads matching examples from `demo_questions.json`
+3. User inputs requirements → optionally extracts directory structure via AI
+4. Click "Generate" → `ai_service.py` builds prompt with examples and streams to frontend
+5. Frontend parses JSON from AI response and displays questions in real-time
+6. Click "Export" → `excel_service.py` converts to Excel with proper formatting
+
+### Question Type System
+
+The system supports 9 question types (题型):
+- 单选题 (single choice), 多选题 (multiple choice), 不定项选择题 (uncertain choice)
+- 判断题 (true/false), 填空题 (fill-in-blank), 简答题 (short answer)
+- 排序题 (sorting), 计算题 (calculation), 论述题 (essay)
+
+**Critical**: `demo_questions.json` must contain at least one example of each question type. The system uses `get_question_type()` to match questions by their "题型" field value.
 
 ## Data Schema
 
-The question bank uses a fixed 14-column structure:
-
+14-column structure (3 required fields):
 1. **题干（必填）** - Question text (required)
-2. **题型 （必填）** - Question type (required): 单选题, 多选题, 不定项选择题, 判断题, 填空题, 简答题, 排序题, 计算题, 论述题
-3. **选项 A** - Option A
-4. **选项 B** - Option B
-5. **选项 C** - Option C
-6. **选项 D** - Option D
-7. **选项E\n(勿删)** - Option E (do not delete)
-8. **选项F\n(勿删)** - Option F (do not delete)
-9. **选项G\n(勿删)** - Option G (do not delete)
-10. **选项H\n(勿删)** - Option H (do not delete)
-11. **正确答案\n（必填）** - Correct answer (required)
-12. **解析\n（勿删）** - Explanation (do not delete)
-13. **章节\n（勿删）** - Chapter/section (do not delete)
-14. **难度** - Difficulty level: 易, 偏易, 适中, 难
+2. **题型 （必填）** - Question type (required)
+3-10. **选项 A-H** - Options A through H (E-H marked "勿删")
+11. **正确答案（必填）** - Correct answer (required)
+12. **解析（勿删）** - Explanation
+13. **章节（勿删）** - Chapter/section
+14. **难度** - Difficulty: 易, 偏易, 适中, 难
 
-### Answer Format Rules
-
-- **Single choice (单选题):** Single letter (e.g., "A")
-- **Multiple choice (多选题):** Multiple letters (e.g., "ABCD")
-- **Uncertain choice (不定项选择题):** Multiple letters (e.g., "ABCD")
-- **True/False (判断题):** "A" for true, "B" for false
-- **Fill-in-blank (填空题):** null or answer text in 选项 A
-- **Short answer (简答题):** Answer text in 正确答案 field
-- **Sorting (排序题):** Letter sequence (e.g., "DBAC")
-- **Calculation (计算题):** Answer text in 正确答案 field
-- **Essay (论述题):** Answer text in 正确答案 field
-
-## Key Implementation Details
-
-### Excel Styling (generate_excel.py)
-- Uses `openpyxl` library for Excel manipulation
-- Header row height: 40
-- Data row height: 30
-- Column widths are predefined (题干: 50, 题型: 15, options: 20, etc.)
-- All cells have thin borders
-- Text wrapping enabled for proper display
+### Answer Format by Type
+- Single/multiple/uncertain choice: Letter(s) like "A" or "ABCD"
+- True/False: "A" (true) or "B" (false)
+- Fill-in-blank: Answer in 选项 A or 正确答案
+- Short answer/calculation/essay: Answer in 正确答案
+- Sorting: Letter sequence like "DBAC"
 
 ### JSON Structure
-Questions are stored in a JSON object with a "questions" array:
 ```json
 {
   "questions": [
     {
       "题干（必填）": "question text",
-      "题型 （必填）": "question type",
-      ...
+      "题型 （必填）": "单选题",
+      "选项 A": "option text",
+      "正确答案（必填）": "A",
+      "难度": "适中"
     }
   ]
 }
 ```
 
-## Dependencies
+## Key Implementation Notes
 
-- `openpyxl` - Excel file manipulation
-- `json` - JSON data handling
-
-Install with: `pip install openpyxl`
+- **Port**: Default is 8111 (not 8000 as mentioned in some docs)
+- **Encryption**: API keys encrypted client-side with AES before localStorage storage
+- **Logging**: All API calls logged to `log/YYYY-MM-DD.log` with request/response bodies
+- **Excel styling**: Header row light blue (#B4C7E7), 宋体 font size 11, borders on all cells
+- **Question type detection**: Handles variations in field names (spaces, newlines in "题型 （必填）")
+- **Demo data**: `demo_questions.json` serves dual purpose: UI preview and AI format examples

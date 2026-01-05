@@ -608,6 +608,40 @@ pip install hypercorn
 
 ---
 
+## 📝 更新日志
+
+### 2026-01-06
+
+- ♻️ 提取表头处理逻辑到单独模块并更新引用 ([`e74a3dd`](https://github.com/Sam5440/QBank2Xlsx/commit/e74a3dd))
+- 🐛 修复demo_data中问题类型字段的获取方式 ([`cc98e4e`](https://github.com/Sam5440/QBank2Xlsx/commit/cc98e4e))
+- ✨ 改进题型选择器样式并添加说明功能 ([`45aaab2`](https://github.com/Sam5440/QBank2Xlsx/commit/45aaab2))
+- 🐛 修复题型检测逻辑并添加重复提示 ([`87e1b06`](https://github.com/Sam5440/QBank2Xlsx/commit/87e1b06))
+- ✨ 添加日志记录功能和题型预览按钮 ([`4a662ab`](https://github.com/Sam5440/QBank2Xlsx/commit/4a662ab))
+
+### 2026-01-05
+
+- ✨ 添加题型动态加载和JSON预览功能 ([`ade3572`](https://github.com/Sam5440/QBank2Xlsx/commit/ade3572))
+- 📌 Sam5440/QBank2Xlsx ([`d67e34c`](https://github.com/Sam5440/QBank2Xlsx/commit/d67e34c))
+- ♻️ 重构表头匹配逻辑以提高灵活性 ([`a7015bf`](https://github.com/Sam5440/QBank2Xlsx/commit/a7015bf))
+
+### 2026-01-04
+
+- 📌 Merge pull request #2 from Sam5440/copilot/generate-complete-readme ([`52b0141`](https://github.com/Sam5440/QBank2Xlsx/commit/52b0141))
+- 📌 Add comprehensive README documentation in Chinese and English ([`1621759`](https://github.com/Sam5440/QBank2Xlsx/commit/1621759))
+- 📌 Initial plan ([`6e4f7ba`](https://github.com/Sam5440/QBank2Xlsx/commit/6e4f7ba))
+- ♻️ 优化题目选项匹配逻辑并提取常量 ([`f3118f7`](https://github.com/Sam5440/QBank2Xlsx/commit/f3118f7))
+- ✨ 添加JSON验证和单个对比审核功能 ([`889b6ec`](https://github.com/Sam5440/QBank2Xlsx/commit/889b6ec))
+- ✨ 新增AB对比功能并优化Excel导出 ([`bee3360`](https://github.com/Sam5440/QBank2Xlsx/commit/bee3360))
+- ♻️ 重构代码结构，提取通用功能到独立模块 ([`6ab56a0`](https://github.com/Sam5440/QBank2Xlsx/commit/6ab56a0))
+- ✨ 添加系统提示词自定义和目录结构功能 ([`43d95b9`](https://github.com/Sam5440/QBank2Xlsx/commit/43d95b9))
+- 🔧 删除废弃的Excel分析脚本 ([`e3f395e`](https://github.com/Sam5440/QBank2Xlsx/commit/e3f395e))
+
+### 2026-01-03
+
+- 📌 AI exam question bank generator ([`f003ed7`](https://github.com/Sam5440/QBank2Xlsx/commit/f003ed7))
+
+---
+
 ## 📄 许可证
 
 本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
