@@ -49,12 +49,15 @@
             display: flex;
             gap: 4px;
             align-items: stretch;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+            overflow: hidden;
         }
         .type-btn {
             padding: 12px 20px;
-            border: 2px solid #cbd5e0;
-            background: white;
-            border-radius: 6px;
+            border: none;
+            background: transparent;
             cursor: pointer;
             transition: all 0.2s;
             font-size: 14px;
@@ -63,19 +66,46 @@
             text-align: center;
             flex: 1;
         }
-        .preview-btn {
-            padding: 8px 12px;
-            border: 2px solid #cbd5e0;
-            background: white;
-            border-radius: 6px;
+        .type-item.active {
+            border-color: #667eea;
+            background: #667eea;
+        }
+        .type-item.active .type-btn {
+            color: white;
+        }
+        .type-item.active .action-btns button {
+            color: white;
+            border-left-color: rgba(255,255,255,0.3);
+        }
+        .action-btns {
+            display: flex;
+            border-left: 1px solid #e2e8f0;
+        }
+        .action-btns button {
+            padding: 8px 10px;
+            border: none;
+            background: transparent;
             cursor: pointer;
             transition: all 0.2s;
-            font-size: 14px;
+            font-size: 12px;
             color: #667eea;
+            border-left: 1px solid #e2e8f0;
         }
-        .preview-btn:hover {
-            border-color: #667eea;
-            background: #f7fafc;
+        .action-btns button:first-child {
+            border-left: none;
+        }
+        .action-btns button:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        .notice-tip {
+            padding: 12px 16px;
+            background: #fff5f5;
+            border: 2px solid #fc8181;
+            border-radius: 6px;
+            color: #c53030;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
         }
         .type-btn:hover {
             border-color: #667eea;
@@ -388,6 +418,7 @@
 
         <div class="section">
             <div class="section-title">1️⃣ 选择题型（可多选）</div>
+            <div id="noticeTipContainer"></div>
             <div class="question-types" id="questionTypesContainer">
                 <div style="color: #718096; padding: 20px; text-align: center;">加载中...</div>
             </div>
@@ -596,6 +627,15 @@
 
                 sampleData = data.sampleData;
                 const types = data.questionTypes || [];
+                const noticeTip = data.noticeTip;
+
+                // Display notice tip if exists
+                const noticeTipContainer = document.getElementById('noticeTipContainer');
+                if (noticeTip) {
+                    noticeTipContainer.innerHTML = `<div class="notice-tip">⚠️ ${noticeTip}</div>`;
+                } else {
+                    noticeTipContainer.innerHTML = '';
+                }
 
                 if (types.length === 0) {
                     document.getElementById('questionTypesContainer').innerHTML =
@@ -603,18 +643,29 @@
                     return;
                 }
 
+                // Count examples for each type
+                const typeCounts = {};
+                types.forEach(type => {
+                    const count = sampleData.questions?.filter(q => q['题型 （必填）'] === type).length || 0;
+                    typeCounts[type] = count;
+                });
+
                 const container = document.getElementById('questionTypesContainer');
                 container.innerHTML = types.map(type =>
-                    `<div class="type-item">
-                        <button class="type-btn" data-type="${type}">${type}</button>
-                        <button class="preview-btn" onclick="previewJSON('${type}')">📋</button>
+                    `<div class="type-item" data-type="${type}">
+                        <button class="type-btn">${type}</button>
+                        <div class="action-btns">
+                            <button onclick="showExplanation('${type}')" title="说明">明</button>
+                            <button onclick="previewJSON('${type}')" title="预览示例">${typeCounts[type]}</button>
+                        </div>
                     </div>`
                 ).join('');
 
-                document.querySelectorAll('.type-btn').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        btn.classList.toggle('active');
-                        const type = btn.dataset.type;
+                document.querySelectorAll('.type-item').forEach(item => {
+                    const typeBtn = item.querySelector('.type-btn');
+                    typeBtn.addEventListener('click', () => {
+                        const type = item.dataset.type;
+                        item.classList.toggle('active');
                         if (selectedTypes.includes(type)) {
                             selectedTypes = selectedTypes.filter(t => t !== type);
                             addLog('取消题型', type);
@@ -632,7 +683,7 @@
                     if (decrypted) {
                         selectedTypes = JSON.parse(decrypted);
                         selectedTypes.forEach(type => {
-                            document.querySelector(`[data-type="${type}"]`)?.classList.add('active');
+                            document.querySelector(`.type-item[data-type="${type}"]`)?.classList.add('active');
                         });
                     }
                 }
@@ -643,6 +694,24 @@
                 document.getElementById('questionTypesContainer').innerHTML =
                     `<div style="color: #e53e3e; padding: 20px; text-align: center;">加载失败: ${e.message}</div>`;
             }
+        }
+
+        function showExplanation(type) {
+            const explanations = {
+                '单选题': '单选题：只有一个正确答案，答案格式为单个字母（如 "A"）',
+                '多选题': '多选题：有多个正确答案，答案格式为多个字母（如 "ABCD"）',
+                '不定项选择题': '不定项选择题：可能有一个或多个正确答案，答案格式为字母组合（如 "AB"）',
+                '判断题': '判断题：判断对错，答案格式为 "A"（正确）或 "B"（错误）',
+                '填空题': '填空题：填写答案，答案可以在"选项 A"或"正确答案"字段中',
+                '简答题': '简答题：需要文字回答，答案在"正确答案"字段中',
+                '排序题': '排序题：对选项进行排序，答案格式为字母序列（如 "DBAC"）',
+                '计算题': '计算题：需要计算的题目，答案在"正确答案"字段中',
+                '论述题': '论述题：需要详细论述，答案在"正确答案"字段中'
+            };
+
+            const explanation = explanations[type] || '暂无说明';
+            alert(explanation);
+            addLog('查看说明', type);
         }
 
         function previewJSON(section) {
