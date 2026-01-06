@@ -210,4 +210,4 @@ if __name__ == '__main__':
         print("启动 HTTP/1.1 服务器（最多 6 个并发连接）...")
         print("提示：使用 'python app.py --http2' 启用 HTTP/2 支持")
         import uvicorn
-        uvicorn.run(app, host='0.0.0.0', port=8111)
+        uvicorn.run(app, host='127.0.0.1', port=8111)

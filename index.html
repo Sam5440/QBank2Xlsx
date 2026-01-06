@@ -546,15 +546,13 @@
 
         <div class="section">
             <div class="section-title">5️⃣ AB 对比审核</div>
-            <div style="margin-bottom: 15px;">
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                    <input type="checkbox" id="removeNullToggle" checked style="width: 18px; height: 18px; cursor: pointer;">
-                    <span style="font-size: 14px; color: #2d3748;">去除 null 值</span>
-                </label>
+            <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 20px;">
+                <button class="small" onclick="toggleRemoveNull()">🧹 去除 null 值</button>
+                <button class="small" onclick="addSequenceNumbers()">🗂️ 添加序号</button>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                 <div>
-                    <div style="font-size: 14px; color: #718096; margin-bottom: 8px; font-weight: 600;">📄 文件 A（生成的题目）</div>
+                    <div style="font-size: 14px; color: #718096; margin-bottom: 8px; font-weight: 600;">📄 文件 A（生成的题目） <span id="file-a-q-count" style="color: #6366f1;"></span></div>
                     <textarea id="fileA" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..."></textarea>
                 </div>
                 <div>
@@ -1078,7 +1076,7 @@
             container.innerHTML = outputPairs.map((pair, idx) => `
                 <div class="output-pair">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <span style="font-size: 14px; color: #718096; font-weight: 600;">输出 #${pair.id + 1}</span>
+                        <span style="font-size: 14px; color: #718096; font-weight: 600;">输出 #${pair.id + 1} <span id="q-count-${pair.id}" style="color: #6366f1;"></span></span>
                         <div style="display: flex; gap: 8px;">
                             <button class="small" onclick="regenerateSingle(${pair.id})">🔄 重新生成</button>
                             <button class="small" onclick="compareSingle(${pair.id})">🔍 对比审核</button>
@@ -1087,7 +1085,8 @@
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <div>
                             <div style="font-size: 12px; color: #718096; margin-bottom: 8px;">📝 可编辑 JSON</div>
-                            <textarea class="output" id="editable-${pair.id}" onchange="validateJSON(${pair.id})" style="background: white; color: #2d3748; border: 2px solid #e2e8f0;" placeholder="等待生成...">${pair.editable}</textarea>
+                            <textarea class="output" id="editable-${pair.id}" oninput="validateJSON(${pair.id})" style="background: white; color: #2d3748; border: 2px solid #e2e8f0;" placeholder="等待生成...">${pair.editable}</textarea>
+                            <div class="validation-error" id="validation-error-${pair.id}" style="display: none;"></div>
                         </div>
                         <div>
                             <div style="font-size: 12px; color: #718096; margin-bottom: 8px;">📄 完整输出</div>
@@ -1141,8 +1140,43 @@
         }
 
         function extractJSON(text) {
-            const match = text.match(/```json\s*([\s\S]*?)\s*```/);
-            return match ? match[1].trim() : '';
+            // This new function is more robust against common AI formatting errors.
+            // It finds the first ```json and the next ``` after it.
+            const jsonStartMarker = "```json";
+            const startIndex = text.indexOf(jsonStartMarker);
+
+            if (startIndex === -1) {
+                // If no ```json marker, it might be a raw JSON response.
+                const firstBrace = text.indexOf('{');
+                const lastBrace = text.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace > firstBrace) {
+                    const potentialJson = text.substring(firstBrace, lastBrace + 1);
+                    try {
+                        JSON.parse(potentialJson); // Test if it's valid
+                        addLog('JSON 提取', '检测到无代码块的裸JSON格式');
+                        return potentialJson;
+                    } catch (e) {
+                        // Not valid JSON, fall through to return empty
+                    }
+                }
+                return ''; // No JSON block found
+            }
+
+            const jsonEndMarker = "```";
+            // Start searching for the end marker *after* the start marker.
+            const endIndex = text.indexOf(jsonEndMarker, startIndex + jsonStartMarker.length);
+
+            if (endIndex === -1) {
+                // This can happen if the response is truncated.
+                // We'll take everything from the start marker to the end of the string.
+                const potentialJson = text.substring(startIndex + jsonStartMarker.length);
+                addLog('JSON 提取警告', '找到了 "```json" 但未找到结束的 "```"');
+                return potentialJson.trim();
+            }
+
+            // We have a start and an end. Extract the content.
+            const jsonContent = text.substring(startIndex + jsonStartMarker.length, endIndex);
+            return jsonContent.trim();
         }
 
         async function generateSingle(pairId, userInput) {
@@ -1151,11 +1185,11 @@
             if (idx === -1) return;
 
             outputPairs[idx].full = '正在生成中...\n\n';
-            outputPairs[idx].editable = '';
+            outputPairs[idx].editable = ''; // Ensure editable is clear during streaming
             const fullEl = document.getElementById(`full-${pairId}`);
             const editableEl = document.getElementById(`editable-${pairId}`);
             if (fullEl) fullEl.textContent = '正在生成中...\n\n';
-            if (editableEl) editableEl.value = '';
+            if (editableEl) editableEl.value = ''; // Ensure editable is clear during streaming
 
             const isStreaming = document.getElementById('streamToggle').checked;
             const systemPrompt = document.getElementById('systemPrompt').value;
@@ -1194,43 +1228,39 @@
                             throw new Error(data.error);
                         } else if (data.text) {
                             fullText += data.text;
-                            if (isStreaming) {
+                            if (isStreaming) { // Only update full output if streaming is enabled
                                 outputPairs[idx].full = fullText;
                                 if (fullEl) {
                                     fullEl.textContent = fullText;
                                     fullEl.scrollTop = fullEl.scrollHeight;
                                 }
-
-                                const jsonContent = extractJSON(fullText);
-                                if (jsonContent) {
-                                    outputPairs[idx].editable = jsonContent;
-                                    if (editableEl) {
-                                        editableEl.value = jsonContent;
-                                        editableEl.scrollTop = editableEl.scrollHeight;
-                                    }
-                                }
                             }
+                            // Remove extractJSON and editableEl.value update during streaming
                         }
                     }
                 }
             }
 
+            // After streaming is complete (or if not streaming at all)
+            // Ensure fullText is set for the full output display
             if (!isStreaming) {
                 outputPairs[idx].full = fullText;
                 if (fullEl) fullEl.textContent = fullText;
-                const jsonContent = extractJSON(fullText);
-                if (jsonContent) {
-                    outputPairs[idx].editable = jsonContent;
-                    if (editableEl) editableEl.value = jsonContent;
-                }
             }
 
-            const jsonContent = extractJSON(fullText);
-            const questionCount = jsonContent ? (JSON.parse(jsonContent).questions || []).length : 0;
-            addLog(`AI生成完成 #${pairId + 1}`, `生成了 ${questionCount} 道题目, 总字符: ${fullText.length}`);
+            // Extract and validate JSON ONLY ONCE after the full response is received
+            const extractedJsonContent = extractJSON(fullText);
+            if (extractedJsonContent) {
+                outputPairs[idx].editable = extractedJsonContent;
+                if (editableEl) {
+                    editableEl.value = extractedJsonContent;
+                }
+            }
+            
+            validateJSON(pairId); // Validate once
 
-            // 自动验证 JSON 格式
-            validateJSON(pairId);
+            const finalQuestionCount = extractedJsonContent ? (JSON.parse(extractedJsonContent).questions || []).length : 0;
+            addLog(`AI生成完成 #${pairId + 1}`, `生成了 ${finalQuestionCount} 道题目, 总字符: ${fullText.length}`);
         }
 
         async function regenerateSingle(pairId) {
@@ -1385,23 +1415,50 @@
 
         function validateJSON(pairId) {
             const editableEl = document.getElementById(`editable-${pairId}`);
-            if (!editableEl) return;
+            const countEl = document.getElementById(`q-count-${pairId}`);
+            const errorDiv = document.getElementById(`validation-error-${pairId}`);
+
+            console.log(`validateJSON called for pairId: ${pairId}`);
+            console.log(`editableEl found: ${!!editableEl}`);
+            console.log(`countEl found: ${!!countEl}`);
+            console.log(`errorDiv found: ${!!errorDiv}`);
+
+            if (!editableEl || !countEl || !errorDiv) {
+                console.error(`validateJSON: Missing elements for pairId ${pairId}`);
+                return;
+            }
 
             const jsonText = editableEl.value.trim();
+            countEl.textContent = ''; // Reset count
+            errorDiv.style.display = 'none'; // Hide error initially
+            errorDiv.textContent = ''; // Clear error message
+
+            console.log(`Processing JSON text (length ${jsonText.length}):`, jsonText.substring(0, 200) + (jsonText.length > 200 ? '...' : ''));
+
+
             if (!jsonText) {
                 editableEl.classList.remove('invalid');
+                console.log(`validateJSON: No JSON text for pairId ${pairId}`);
                 return;
             }
 
             try {
                 const data = JSON.parse(jsonText);
+                let questionCount = 0;
 
                 // 检查是否有 questions 数组
                 if (!data.questions || !Array.isArray(data.questions)) {
                     editableEl.classList.add('invalid');
+                    errorDiv.textContent = '❌ JSON 缺少 "questions" 数组。';
+                    errorDiv.style.display = 'block';
                     addLog(`验证失败 #${pairId + 1}`, '缺少 questions 数组');
+                    console.error(`validateJSON: Missing questions array for pairId ${pairId}`);
                     return;
                 }
+                
+                questionCount = data.questions.length;
+                console.log(`validateJSON: questionCount for pairId ${pairId} is ${questionCount}`);
+
 
                 // 检查每个题目的必填字段
                 const requiredFields = ['题干（必填）', '题型 （必填）', '正确答案\n（必填）'];
@@ -1410,7 +1467,10 @@
                     for (const field of requiredFields) {
                         if (!q[field] || q[field].toString().trim() === '') {
                             editableEl.classList.add('invalid');
+                            errorDiv.textContent = `❌ 题目 ${i + 1} 缺少必填字段: "${field}"。`;
+                            errorDiv.style.display = 'block';
                             addLog(`验证失败 #${pairId + 1}`, `题目 ${i + 1} 缺少必填字段: ${field}`);
+                            console.error(`validateJSON: Missing required field "${field}" for question ${i + 1} in pairId ${pairId}`);
                             return;
                         }
                     }
@@ -1418,14 +1478,24 @@
 
                 // 验证通过
                 editableEl.classList.remove('invalid');
-                addLog(`验证通过 #${pairId + 1}`, `${data.questions.length} 道题目格式正确`);
+                if (questionCount > 0) {
+                    countEl.textContent = `(${questionCount} 道)`;
+                    console.log(`validateJSON: Successfully set count for pairId ${pairId}: ${countEl.textContent}`);
+                }
+                addLog(`验证通过 #${pairId + 1}`, `${questionCount} 道题目格式正确`);
             } catch (e) {
+                // JSON parsing error
                 editableEl.classList.add('invalid');
-                addLog(`验证失败 #${pairId + 1}`, 'JSON 格式错误');
+                errorDiv.textContent = `❌ JSON 格式错误: ${e.message}。`;
+                errorDiv.style.display = 'block';
+                addLog(`验证失败 #${pairId + 1}`, `JSON 格式错误: ${e.message}`);
+                console.error(`validateJSON: JSON parsing error for pairId ${pairId}: ${e.message}`);
             }
         }
 
         function generateFileA() {
+            const countEl = document.getElementById('file-a-q-count');
+            countEl.textContent = '';
             try {
                 let allQuestions = [];
                 for (const pair of outputPairs) {
@@ -1439,10 +1509,12 @@
 
                 if (allQuestions.length === 0) {
                     alert('❌ 没有可生成的题目');
+                    document.getElementById('fileA').value = '';
                     return;
                 }
 
-                const removeNull = document.getElementById('removeNullToggle').checked;
+                countEl.textContent = `(共 ${allQuestions.length} 道)`;
+                const removeNull = removeNullEnabled;
                 let result = { questions: allQuestions };
                 if (removeNull) {
                     result = removeNullValues(result);
@@ -1454,6 +1526,53 @@
             } catch (e) {
                 alert(`❌ 生成失败: ${e.message}`);
                 addLog('生成文件A失败', e.message);
+            }
+        }
+
+        let removeNullEnabled = true;
+
+        function toggleRemoveNull() {
+            removeNullEnabled = !removeNullEnabled;
+            const btn = event.target;
+            btn.textContent = removeNullEnabled ? '🧹 去除 null 值' : '🧹 保留 null 值';
+            btn.style.opacity = removeNullEnabled ? '1' : '0.6';
+        }
+
+        function addSequenceNumbers() {
+            const fileATextarea = document.getElementById('fileA');
+            const fileAContent = fileATextarea.value;
+
+            if (!fileAContent.trim()) {
+                alert('❌ 文件 A 中没有内容可添加序号。');
+                addLog('添加序号失败', '文件 A 为空');
+                return;
+            }
+
+            try {
+                const data = JSON.parse(fileAContent);
+                if (!data.questions || !Array.isArray(data.questions)) {
+                    alert('❌ 文件 A 的内容不是有效的题目JSON格式（缺少 questions 数组）。');
+                    addLog('添加序号失败', 'JSON格式无效');
+                    return;
+                }
+
+                data.questions.forEach((q, index) => {
+                    const seq = `[${String(index + 1).padStart(2, '0')}]`;
+                    const stemKey = '题干（必填）';
+                    
+                    // 移除旧序号（如果存在），避免重复添加
+                    if (q[stemKey]) {
+                        q[stemKey] = q[stemKey].replace(/^\[\d+\]\s*/, '').trim();
+                        q[stemKey] = `${seq}${q[stemKey]}`;
+                    }
+                });
+
+                fileATextarea.value = JSON.stringify(data, null, 2);
+                addLog('添加序号成功', `为 ${data.questions.length} 道题目添加了序号`);
+
+            } catch (e) {
+                alert(`❌ 处理JSON时出错: ${e.message}`);
+                addLog('添加序号异常', e.message);
             }
         }
 
@@ -1572,7 +1691,7 @@
                 return;
             }
 
-            const removeNull = document.getElementById('removeNullToggle').checked;
+            const removeNull = removeNullEnabled;
             let fileA = outputText;
             if (removeNull) {
                 try {
