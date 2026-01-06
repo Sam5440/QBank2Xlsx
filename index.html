@@ -1413,6 +1413,44 @@
             return obj;
         }
 
+        function getQuestionFieldValue(question, standardField) {
+            // Extract base text (e.g., "正确答案" from "正确答案\n（必填）")
+            // This regex handles both (全角) and (半角) parentheses.
+            const baseTextMatch = standardField.match(/^([^（(]+)/);
+            const baseText = baseTextMatch ? baseTextMatch[1].trim() : standardField.replace(/[\n（）()]/g, '').trim();
+
+            const possibleKeys = [
+                standardField,                         // e.g., "正确答案\n（必填）"
+                standardField.replace(/\n/g, ''),      // e.g., "正确答案（必填）"
+                baseText                               // e.g., "正确答案"
+            ];
+
+            // Also consider variations where "（必填）" or "(必填)" is optional or absent
+            const optionalSuffixKeys = [];
+            if (standardField.includes('（必填）')) {
+                optionalSuffixKeys.push(standardField.replace('（必填）', '').trim());
+                optionalSuffixKeys.push(standardField.replace('（必填）', '').replace(/\n/g, '').trim());
+            }
+            if (standardField.includes('(必填)')) {
+                optionalSuffixKeys.push(standardField.replace('(必填)', '').trim());
+                optionalSuffixKeys.push(standardField.replace('(必填)', '').replace(/\n/g, '').trim());
+            }
+
+            // Remove duplicates and nulls
+            const allPossibleKeys = [...new Set([...possibleKeys, ...optionalSuffixKeys])].filter(Boolean);
+
+            for (const key of allPossibleKeys) {
+                // Check for direct match
+                // Note: question.hasOwnProperty(key) is more robust than `key in question`
+                // Ensure value is not null, undefined, and not an empty string after trimming.
+                if (question.hasOwnProperty(key) && question[key] !== null && question[key] !== undefined && question[key].toString().trim() !== '') {
+                    return question[key];
+                }
+            }
+
+            return null; // Not found or empty
+        }
+
         function validateJSON(pairId) {
             const editableEl = document.getElementById(`editable-${pairId}`);
             const countEl = document.getElementById(`q-count-${pairId}`);
@@ -1465,7 +1503,8 @@
                 for (let i = 0; i < data.questions.length; i++) {
                     const q = data.questions[i];
                     for (const field of requiredFields) {
-                        if (!q[field] || q[field].toString().trim() === '') {
+                        const fieldValue = getQuestionFieldValue(q, field); // Use the flexible matcher
+                        if (fieldValue === null || fieldValue.toString().trim() === '') {
                             editableEl.classList.add('invalid');
                             errorDiv.textContent = `❌ 题目 ${i + 1} 缺少必填字段: "${field}"。`;
                             errorDiv.style.display = 'block';
