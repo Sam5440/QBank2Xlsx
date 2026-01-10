@@ -34,21 +34,34 @@ def match_header(header, question):
     返回:
         匹配到的值，如果不存在返回 None
     """
-    # 提取括号前的核心文本
-    base_text = header.split('（')[0].split('(')[0].replace('\n', '').strip()
+    # # 提取括号前的核心文本
+    # base_text = header.split('（')[0].split('(')[0].replace('\n', '').strip()
+    # print(base_text)    
+    # # 尝试多种可能的键格式
+    # possible_keys = [
+    #     header,                           # 完整格式（如 "正确答案\n（必填）"）
+    #     header.replace('\n', ''),         # 去除换行符（如 "正确答案（必填）"）
+    #     base_text                         # 只有核心文本（如 "正确答案"）
+    # ]
 
-    # 尝试多种可能的键格式
-    possible_keys = [
-        header,                           # 完整格式（如 "正确答案\n（必填）"）
-        header.replace('\n', ''),         # 去除换行符（如 "正确答案（必填）"）
-        base_text                         # 只有核心文本（如 "正确答案"）
-    ]
-
-    for key in possible_keys:
-        value = question.get(key)
-        if value is not None:
+    # for key in possible_keys:
+    #     value = question.get(key)
+    #     if value is not None:
+    #         return value
+    # 去除表头中的换行符，便于后续匹配
+    target = header.replace('\n', '')
+    # 遍历 HEADER_MAPPING，检查映射表中的 key 是否出现在 target 中
+    # 若出现，则将 target 替换为对应的 key，并终止循环
+    for key, value in HEADER_MAPPING.items():
+        if key in target:
+            target = key
+            break
+    
+    # 再次遍历 question 字典，检查其 target 是否出现在 key 中
+    # 若出现，则返回对应的 value
+    for key, value in question.items():
+        if target in key:
             return value
-
     return None
 
 
