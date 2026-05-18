@@ -5,14 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 题库生成器 - QBank2Xlsx</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="/themes.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         :root {
             --primary: #2563EB;
             --secondary: #3B82F6;
@@ -34,7 +31,6 @@
             --radius-lg: 14px;
             --radius-xl: 18px;
         }
-
         body {
             font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             padding: 24px 16px;
@@ -77,12 +73,6 @@
             align-items: center;
             justify-content: center;
             box-shadow: var(--shadow-md);
-        }
-        .header-icon svg {
-            width: 28px;
-            height: 28px;
-            color: white;
-            stroke-width: 2.5;
         }
         h1 {
             font-family: 'Poppins', sans-serif;
@@ -131,7 +121,6 @@
             height: 20px;
             color: var(--primary);
         }
-        /* Question Types */
         .question-types {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -141,33 +130,32 @@
             display: flex;
             gap: 0;
             align-items: stretch;
-            border: 2px solid var(--border);
-            border-radius: var(--radius-md);
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
             background: white;
             overflow: hidden;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.2s ease;
         }
         .type-item:hover {
-            border-color: var(--secondary);
-            box-shadow: var(--shadow-md);
-            transform: translateY(-2px);
+            border-color: #c7d2fe;
+            box-shadow: 0 2px 8px rgba(99,102,241,0.1);
         }
         .type-btn {
             padding: 14px 18px;
             border: none;
             background: transparent;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             font-size: 14px;
             font-weight: 500;
-            color: var(--text-primary);
+            color: #374151;
             text-align: center;
             flex: 1;
         }
         .type-item.active {
-            border-color: var(--primary);
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            border-color: #6366f1;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            box-shadow: 0 4px 12px rgba(99,102,241,0.25);
         }
         .type-item.active .type-btn {
             color: white;
@@ -179,7 +167,7 @@
         }
         .action-btns {
             display: flex;
-            border-left: 1px solid var(--border);
+            border-left: 1px solid #e5e7eb;
         }
         .action-btns button {
             padding: 8px 12px;
@@ -188,55 +176,43 @@
             cursor: pointer;
             transition: all 0.2s ease;
             font-size: 12px;
-            color: var(--primary);
-            border-left: 1px solid var(--border);
+            color: #6366f1;
+            border-left: 1px solid #e5e7eb;
             font-weight: 500;
         }
         .action-btns button:first-child {
             border-left: none;
         }
         .action-btns button:hover {
-            background: rgba(37, 99, 235, 0.08);
+            background: rgba(99,102,241,0.08);
         }
-        /* Notice Tip */
         .notice-tip {
             padding: 14px 18px;
-            background: #FEF2F2;
-            border: 2px solid #FCA5A5;
-            border-radius: var(--radius-md);
-            color: var(--error);
+            background: #fef2f2;
+            border: 2px solid #fca5a5;
+            border-radius: 8px;
+            color: #dc2626;
             font-size: 14px;
             font-weight: 600;
             margin-bottom: 18px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
-        .notice-tip svg {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-        }
-
-        /* Form Inputs */
         input, textarea, select {
             width: 100%;
             padding: 12px 14px;
-            border: 2px solid var(--border);
-            border-radius: var(--radius-md);
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
             font-size: 14px;
-            color: var(--text-primary);
+            color: #111827;
             background: white;
-            transition: all 0.3s ease;
-            font-family: 'Open Sans', sans-serif;
+            transition: all 0.2s ease;
         }
         input:focus, textarea:focus, select:focus {
             outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
         }
         input:hover, textarea:hover, select:hover {
-            border-color: var(--secondary);
+            border-color: #d1d5db;
         }
         textarea {
             min-height: 150px;
@@ -244,7 +220,6 @@
             font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
             line-height: 1.7;
         }
-        /* API Configuration */
         .api-config {
             display: flex;
             flex-direction: column;
@@ -257,55 +232,45 @@
             align-items: center;
             padding: 18px;
             background: white;
-            border-radius: var(--radius-md);
-            border: 2px solid var(--border);
-            transition: all 0.3s ease;
+            border-radius: 8px;
+            border: 2px solid #e5e7eb;
+            transition: all 0.2s ease;
         }
         .api-row:hover {
-            border-color: var(--secondary);
-            box-shadow: var(--shadow-md);
+            border-color: #d1d5db;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
         .api-row input[type="radio"] {
             width: 20px;
             height: 20px;
             cursor: pointer;
-            accent-color: var(--primary);
+            accent-color: #6366f1;
         }
         .api-row input[type="text"],
         .api-row input[type="password"] {
             margin: 0;
         }
-
-        /* Buttons */
         button {
             padding: 14px 28px;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
             color: white;
             border: none;
-            border-radius: var(--radius-md);
+            border-radius: 8px;
             cursor: pointer;
             font-size: 15px;
             font-weight: 600;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: var(--shadow-md);
-            font-family: 'Open Sans', sans-serif;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-        button svg {
-            width: 18px;
-            height: 18px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(99,102,241,0.2);
         }
         button:hover {
             transform: translateY(-2px);
-            box-shadow: var(--shadow-lg);
+            box-shadow: 0 6px 20px rgba(99,102,241,0.35);
         }
         button:active {
             transform: translateY(0);
         }
         button:disabled {
-            background: var(--border);
+            background: #d1d5db;
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
@@ -314,21 +279,20 @@
         button.small {
             padding: 10px 18px;
             font-size: 14px;
-            box-shadow: var(--shadow-sm);
+            box-shadow: 0 1px 4px rgba(99,102,241,0.15);
         }
         button.danger {
-            background: linear-gradient(135deg, var(--error) 0%, #DC2626 100%);
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
             box-shadow: 0 2px 8px rgba(239,68,68,0.2);
         }
         button.danger:hover {
             box-shadow: 0 6px 20px rgba(239,68,68,0.35);
         }
-        /* Output Areas */
         .output {
-            background: #1E293B;
-            color: #F1F5F9;
-            border: 2px solid #334155;
-            border-radius: var(--radius-md);
+            background: #1f2937;
+            color: #f3f4f6;
+            border: 2px solid #374151;
+            border-radius: 8px;
             padding: 20px;
             min-height: 200px;
             max-height: 400px;
@@ -340,13 +304,13 @@
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
         }
         .output.invalid {
-            border: 3px solid var(--error);
-            background: #FEF2F2;
-            color: var(--error);
+            border: 3px solid #ef4444;
+            background: #fef2f2;
+            color: #dc2626;
             box-shadow: 0 0 0 3px rgba(239,68,68,0.1);
         }
         .validation-error {
-            color: var(--error);
+            color: #ef4444;
             font-size: 12px;
             margin-top: 6px;
             font-weight: 600;
@@ -355,22 +319,20 @@
             display: flex;
             gap: 16px;
             margin-top: 24px;
-            flex-wrap: wrap;
         }
         .error {
-            color: var(--error);
+            color: #dc2626;
             margin-top: 12px;
             padding: 14px 16px;
-            background: #FEF2F2;
-            border-radius: var(--radius-md);
-            border-left: 4px solid var(--error);
+            background: #fef2f2;
+            border-radius: 8px;
+            border-left: 4px solid #ef4444;
             font-weight: 500;
             font-size: 14px;
         }
-        /* Labels and Inputs */
         .label {
             font-size: 12px;
-            color: var(--text-secondary);
+            color: #6b7280;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -387,7 +349,7 @@
         }
         .char-count {
             font-size: 13px;
-            color: var(--primary);
+            color: #6366f1;
             font-weight: 600;
         }
         .input-actions {
@@ -398,19 +360,18 @@
         .output-pair {
             margin-bottom: 20px;
             padding-bottom: 24px;
-            border-bottom: 2px solid var(--border);
+            border-bottom: 2px solid #e5e7eb;
         }
         .output-pair:last-child {
             border-bottom: none;
         }
         .placeholder {
-            color: var(--error);
+            color: #ef4444;
             font-weight: 600;
-            background: #FEF2F2;
+            background: #fef2f2;
             padding: 3px 8px;
-            border-radius: var(--radius-sm);
+            border-radius: 4px;
         }
-        /* Log Panel */
         .log-panel {
             position: fixed;
             top: 50%;
@@ -419,8 +380,8 @@
             width: 480px;
             height: 420px;
             background: white;
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-xl);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.05);
             z-index: 1000;
             display: flex;
             flex-direction: column;
@@ -438,10 +399,10 @@
         }
         .log-header {
             padding: 14px 18px;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
             color: white;
             font-weight: 600;
-            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            border-radius: 12px 12px 0 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -465,26 +426,26 @@
         .log-entry {
             padding: 10px 12px;
             margin-bottom: 8px;
-            background: var(--background);
-            border-radius: var(--radius-sm);
-            border-left: 3px solid var(--primary);
+            background: #f9fafb;
+            border-radius: 6px;
+            border-left: 3px solid #6366f1;
             transition: all 0.2s ease;
         }
         .log-entry:hover {
-            background: #F1F5F9;
-            box-shadow: var(--shadow-sm);
+            background: #f3f4f6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         .log-time {
-            color: var(--text-secondary);
+            color: #6b7280;
             font-size: 10px;
         }
         .log-action {
-            color: var(--text-primary);
+            color: #111827;
             font-weight: 600;
             margin: 3px 0;
         }
         .log-detail {
-            color: var(--text-secondary);
+            color: #4b5563;
             font-size: 11px;
         }
         .btn-clear {
@@ -494,7 +455,7 @@
             padding: 5px 12px;
             font-size: 12px;
             cursor: pointer;
-            border-radius: var(--radius-sm);
+            border-radius: 6px;
             transition: all 0.2s ease;
             font-weight: 500;
         }
@@ -502,7 +463,6 @@
             background: rgba(255,255,255,0.25);
             border-color: rgba(255,255,255,0.5);
         }
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -518,12 +478,12 @@
             background: white;
             margin: 5% auto;
             padding: 36px;
-            border-radius: var(--radius-xl);
+            border-radius: 16px;
             width: 80%;
             max-width: 960px;
             max-height: 80vh;
             overflow-y: auto;
-            box-shadow: var(--shadow-xl);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.05);
             animation: modalSlideIn 0.3s ease;
         }
         @keyframes modalSlideIn {
@@ -542,19 +502,18 @@
             align-items: center;
             margin-bottom: 24px;
             padding-bottom: 16px;
-            border-bottom: 2px solid var(--border);
+            border-bottom: 2px solid #e5e7eb;
         }
         .modal-title {
-            font-family: 'Poppins', sans-serif;
             font-size: 26px;
             font-weight: 700;
-            color: var(--text-primary);
+            color: #111827;
             letter-spacing: -0.02em;
         }
         .close-btn {
             font-size: 32px;
             font-weight: bold;
-            color: var(--text-secondary);
+            color: #9ca3af;
             cursor: pointer;
             background: none;
             border: none;
@@ -562,192 +521,21 @@
             width: 36px;
             height: 36px;
             line-height: 1;
-            border-radius: var(--radius-md);
+            border-radius: 8px;
             transition: all 0.2s ease;
         }
         .close-btn:hover {
-            color: var(--text-primary);
-            background: var(--background);
+            color: #111827;
+            background: #f3f4f6;
             transform: none;
             box-shadow: none;
-        }
-
-        /* Theme Switcher Styles */
-        .theme-switcher {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            z-index: 999;
-        }
-
-        .theme-toggle-btn {
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-            border: none;
-            box-shadow: var(--shadow-xl);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-            color: white;
-        }
-
-        .theme-toggle-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 8px 16px rgba(37, 99, 235, 0.4);
-        }
-
-        .theme-toggle-btn svg {
-            width: 24px;
-            height: 24px;
-        }
-
-        .theme-panel {
-            position: absolute;
-            bottom: 70px;
-            right: 0;
-            background: var(--surface);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-xl);
-            padding: 20px;
-            min-width: 320px;
-            max-height: 500px;
-            overflow-y: auto;
-            display: none;
-            animation: slideUp 0.3s ease;
-        }
-
-        .theme-panel.active {
-            display: block;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .theme-panel-header {
-            font-family: 'Poppins', sans-serif;
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .theme-grid {
-            display: grid;
-            gap: 12px;
-        }
-
-        .theme-card {
-            padding: 16px;
-            border: 2px solid var(--border);
-            border-radius: var(--radius-md);
-            cursor: pointer;
-            transition: all 0.3s ease;
-            background: var(--background);
-        }
-
-        .theme-card:hover {
-            border-color: var(--primary);
-            box-shadow: var(--shadow-md);
-        }
-
-        .theme-card.active {
-            border-color: var(--primary);
-            background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
-        }
-
-        .theme-card-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-
-        .theme-card-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: var(--radius-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--primary);
-            color: white;
-        }
-
-        .theme-card-icon svg {
-            width: 18px;
-            height: 18px;
-        }
-
-        .theme-card-title {
-            font-weight: 600;
-            color: var(--text-primary);
-            font-size: 15px;
-        }
-
-        .theme-card-description {
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-bottom: 10px;
-        }
-
-        .theme-card-preview {
-            display: flex;
-            gap: 6px;
-            margin-top: 10px;
-        }
-
-        .theme-color-dot {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            border: 2px solid var(--border);
-        }
-
-        /* Reduced motion support */
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-            }
-        }
-
-        /* Focus states for accessibility */
-        button:focus-visible,
-        input:focus-visible,
-        textarea:focus-visible,
-        select:focus-visible {
-            outline: 3px solid var(--primary);
-            outline-offset: 2px;
-        }
-
-        *:focus:not(:focus-visible) {
-            outline: none;
         }
     </style>
 </head>
 <body>
     <div class="log-panel" id="logPanel">
         <div class="log-header" id="logHeader">
-            <span style="display: flex; align-items: center; gap: 8px;">
-                <i data-lucide="clipboard-list" style="width: 18px; height: 18px;"></i>
-                操作日志
-            </span>
+            📋 操作日志
             <div class="log-header-buttons">
                 <button class="btn-clear" onclick="toggleMinimize()">−</button>
                 <button class="btn-clear" onclick="clearLogs()">清空</button>
@@ -756,18 +544,10 @@
         <div class="log-content" id="logContent"></div>
     </div>
     <div class="container">
-        <div class="header">
-            <div class="header-icon">
-                <i data-lucide="graduation-cap"></i>
-            </div>
-            <h1>AI 题库生成器</h1>
-        </div>
+        <h1>🎓 AI 题库生成器</h1>
 
         <div class="section">
-            <div class="section-title">
-                <i data-lucide="list-checks"></i>
-                选择题型（可多选）
-            </div>
+            <div class="section-title">1️⃣ 选择题型（可多选）</div>
             <div id="noticeTipContainer"></div>
             <div class="question-types" id="questionTypesContainer">
                 <div style="color: #718096; padding: 20px; text-align: center;">加载中...</div>
@@ -775,161 +555,92 @@
         </div>
 
         <div class="section">
-            <div class="section-title">
-                <i data-lucide="settings"></i>
-                API 配置管理 <span style="color: var(--text-secondary); font-size: 14px; font-weight: normal;">(API URL 需要带 /v1，例如: https://api.openai.com/v1)</span>
-            </div>
+            <div class="section-title">2️⃣ API 配置管理 <span style="color: #718096; font-size: 14px; font-weight: normal;">(API URL 需要带 /v1，例如: https://api.openai.com/v1)</span></div>
             <div class="api-config" id="apiConfigs"></div>
-            <button class="small" onclick="addApiConfig()" style="margin-top: 10px;">
-                <i data-lucide="plus"></i>
-                添加 API 配置
-            </button>
+            <button class="small" onclick="addApiConfig()" style="margin-top: 10px;">➕ 添加 API 配置</button>
         </div>
 
         <div class="section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <div class="section-title" style="margin: 0;">
-                    <i data-lucide="file-text"></i>
-                    系统提示词
-                </div>
-                <button class="small" onclick="resetSystemPrompt()">
-                    <i data-lucide="refresh-cw"></i>
-                    还原默认
-                </button>
+                <div class="section-title" style="margin: 0;">📋 系统提示词</div>
+                <button class="small" onclick="resetSystemPrompt()">🔄 还原默认</button>
             </div>
             <textarea id="systemPrompt" style="min-height: 200px; font-family: 'Courier New', monospace;"></textarea>
         </div>
 
         <div class="section">
-            <div class="section-title">
-                <i data-lucide="edit-3"></i>
-                输入题目需求
-            </div>
+            <div class="section-title">3️⃣ 输入题目需求</div>
             <div id="inputPairs"></div>
             <div style="display: flex; gap: 10px; margin-top: 10px;">
-                <button class="small" onclick="addInputPair()">
-                    <i data-lucide="plus"></i>
-                    添加输入
-                </button>
-                <button class="small" onclick="exportInputs()">
-                    <i data-lucide="save"></i>
-                    导出切分
-                </button>
-                <button class="small" onclick="importInputs()">
-                    <i data-lucide="folder-open"></i>
-                    导入切分
-                </button>
+                <button class="small" onclick="addInputPair()">➕ 添加输入</button>
+                <button class="small" onclick="exportInputs()">💾 导出切分</button>
+                <button class="small" onclick="importInputs()">📂 导入切分</button>
             </div>
             <input type="file" id="importFile" accept=".json" style="display: none;" onchange="handleImport(event)">
         </div>
 
         <div class="section">
-            <div class="section-title">
-                <i data-lucide="file-output"></i>
-                输出文件名
-            </div>
+            <div class="section-title">输出文件名</div>
             <div style="display: flex; gap: 10px; align-items: center;">
                 <input type="text" id="outputFilename" value="exam_questions" placeholder="输出文件名" style="flex: 1;">
-                <button class="small" onclick="generateFilename()">
-                    <i data-lucide="bot"></i>
-                    AI 生成
-                </button>
+                <button class="small" onclick="generateFilename()">🤖 AI 生成</button>
             </div>
         </div>
 
         <div class="section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <div class="section-title" style="margin: 0;">
-                    <i data-lucide="folder-tree"></i>
-                    目录结构
-                </div>
-                <button class="small" onclick="extractDirectory()">
-                    <i data-lucide="bot"></i>
-                    AI 提取目录
-                </button>
+                <div class="section-title" style="margin: 0;">📑 目录结构</div>
+                <button class="small" onclick="extractDirectory()">🤖 AI 提取目录</button>
             </div>
             <textarea id="directory" placeholder="输入或提取目录结构..." style="min-height: 120px;"></textarea>
         </div>
 
         <div class="section">
             <div style="display: flex; align-items: center; gap: 20px;">
-                <button id="generateBtn" onclick="generateQuestions()">
-                    <i data-lucide="rocket"></i>
-                    生成题目
-                </button>
+                <button id="generateBtn" onclick="generateQuestions()">🚀 生成题目</button>
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                     <input type="checkbox" id="streamToggle" checked style="width: 18px; height: 18px; cursor: pointer;">
-                    <span style="font-size: 14px; color: var(--text-primary);">流式输出</span>
+                    <span style="font-size: 14px; color: #2d3748;">流式输出</span>
                 </label>
             </div>
         </div>
 
         <div class="section">
-            <div class="section-title">
-                <i data-lucide="sparkles"></i>
-                AI 生成结果
-            </div>
+            <div class="section-title">4️⃣ AI 生成结果</div>
             <div id="outputPairs"></div>
             <div class="error" id="error" style="display: none;"></div>
         </div>
 
         <div class="section">
-            <div class="section-title">
-                <i data-lucide="git-compare"></i>
-                AB 对比审核
-            </div>
+            <div class="section-title">5️⃣ AB 对比审核</div>
             <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 20px;">
-                <button class="small" onclick="toggleRemoveNull()">
-                    <i data-lucide="trash-2"></i>
-                    去除 null 值
-                </button>
-                <button class="small" onclick="addSequenceNumbers()">
-                    <i data-lucide="list-ordered"></i>
-                    添加序号
-                </button>
+                <button class="small" onclick="toggleRemoveNull()">🧹 去除 null 值</button>
+                <button class="small" onclick="addSequenceNumbers()">🗂️ 添加序号</button>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                 <div>
-                    <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 600;">
-                        <i data-lucide="file-check" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
-                        文件 A（生成的题目） <span id="file-a-q-count" style="color: var(--primary);"></span>
-                    </div>
+                    <div style="font-size: 14px; color: #718096; margin-bottom: 8px; font-weight: 600;">📄 文件 A（生成的题目） <span id="file-a-q-count" style="color: #6366f1;"></span></div>
                     <textarea id="fileA" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..."></textarea>
                 </div>
                 <div>
-                    <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 600;">
-                        <i data-lucide="clipboard-list" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
-                        文件 B（原始需求）
-                    </div>
+                    <div style="font-size: 14px; color: #718096; margin-bottom: 8px; font-weight: 600;">📋 文件 B（原始需求）</div>
                     <textarea id="fileB" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..."></textarea>
                 </div>
             </div>
             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                 <button class="small" onclick="generateFileA()">生成文件 A</button>
                 <button class="small" onclick="generateFileB()">生成文件 B</button>
-                <button id="compareBtn" onclick="compareFiles()" disabled>
-                    <i data-lucide="search"></i>
-                    AI 对比分析
-                </button>
-                <button class="small" onclick="compareAllSingle()">
-                    <i data-lucide="zap"></i>
-                    一键全部审核
-                </button>
+                <button id="compareBtn" onclick="compareFiles()" disabled>🔍 AI 对比分析</button>
+                <button class="small" onclick="compareAllSingle()">🚀 一键全部审核</button>
             </div>
             <div>
-                <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 600;">
-                    <i data-lucide="bar-chart-3" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
-                    对比结果
-                </div>
+                <div style="font-size: 14px; color: #718096; margin-bottom: 8px; font-weight: 600;">📊 对比结果</div>
                 <div class="output" id="compareResult">等待对比...</div>
             </div>
         </div>
 
         <div class="actions">
-            <button id="exportBtn" onclick="exportExcel()" disabled>
-                <i data-lucide="download"></i>
-                导出 Excel
-            </button>
+            <button id="exportBtn" onclick="exportExcel()" disabled>📥 导出 Excel</button>
         </div>
     </div>
 
@@ -940,20 +651,6 @@
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
             <div class="output" id="modalContent" style="max-height: 60vh;"></div>
-        </div>
-    </div>
-
-    <!-- Theme Switcher -->
-    <div class="theme-switcher">
-        <button class="theme-toggle-btn" onclick="toggleThemePanel()" aria-label="切换主题">
-            <i data-lucide="palette"></i>
-        </button>
-        <div class="theme-panel" id="themePanel">
-            <div class="theme-panel-header">
-                <i data-lucide="palette"></i>
-                选择主题风格
-            </div>
-            <div class="theme-grid" id="themeGrid"></div>
         </div>
     </div>
 
@@ -2223,88 +1920,8 @@
                 document.querySelector('.log-header-buttons button').textContent = '+';
             }
 
-            // Initialize theme system
-            initializeThemeSystem();
-
             addLog('页面加载', '系统初始化完成');
-
-            // Initialize Lucide icons
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
         };
-
-        // Theme System Functions
-        function initializeThemeSystem() {
-            // Apply saved theme or default
-            const savedTheme = themeManager.getCurrentTheme();
-            themeManager.applyTheme(savedTheme);
-
-            // Render theme selector
-            renderThemeSelector();
-
-            // Close theme panel when clicking outside
-            document.addEventListener('click', (e) => {
-                const themePanel = document.getElementById('themePanel');
-                const themeSwitcher = document.querySelector('.theme-switcher');
-                if (!themeSwitcher.contains(e.target) && themePanel.classList.contains('active')) {
-                    themePanel.classList.remove('active');
-                }
-            });
-        }
-
-        function renderThemeSelector() {
-            const themeGrid = document.getElementById('themeGrid');
-            const themes = themeManager.getThemeList();
-            const currentTheme = themeManager.getCurrentTheme();
-
-            themeGrid.innerHTML = themes.map(theme => `
-                <div class="theme-card ${theme.id === currentTheme ? 'active' : ''}"
-                     onclick="selectTheme('${theme.id}')"
-                     data-theme="${theme.id}">
-                    <div class="theme-card-header">
-                        <div class="theme-card-icon">
-                            <i data-lucide="${theme.icon}"></i>
-                        </div>
-                        <div class="theme-card-title">${theme.name}</div>
-                    </div>
-                    <div class="theme-card-description">${theme.description}</div>
-                    <div class="theme-card-preview">
-                        <div class="theme-color-dot" style="background: ${theme.colors.primary};"></div>
-                        <div class="theme-color-dot" style="background: ${theme.colors.secondary};"></div>
-                        <div class="theme-color-dot" style="background: ${theme.colors.cta};"></div>
-                        <div class="theme-color-dot" style="background: ${theme.colors.background};"></div>
-                    </div>
-                </div>
-            `).join('');
-
-            // Re-initialize Lucide icons for theme cards
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-        }
-
-        function toggleThemePanel() {
-            const themePanel = document.getElementById('themePanel');
-            themePanel.classList.toggle('active');
-        }
-
-        function selectTheme(themeId) {
-            themeManager.applyTheme(themeId);
-            renderThemeSelector();
-
-            // Re-initialize Lucide icons after theme change
-            setTimeout(() => {
-                if (typeof lucide !== 'undefined') {
-                    lucide.createIcons();
-                }
-            }, 100);
-        }
-
-        // Listen for theme changes
-        window.addEventListener('themeChanged', (e) => {
-            console.log('Theme changed to:', e.detail.theme);
-        });
     </script>
 </body>
 </html>

@@ -120,6 +120,19 @@ async def index():
         return f.read()
 
 
+@app.get("/themes.js")
+async def get_themes_js():
+    """Serve themes.js static file"""
+    return FileResponse('themes.js', media_type='application/javascript')
+
+
+@app.get("/theme-test.html", response_class=HTMLResponse)
+async def theme_test():
+    """Serve theme test page"""
+    with open('theme-test.html', 'r', encoding='utf-8') as f:
+        return f.read()
+
+
 @app.get("/api/encryption-key")
 async def get_encryption_key():
     return {"key": ENCRYPTION_KEY}
@@ -202,6 +215,18 @@ if __name__ == '__main__':
     import sys
 
     # 检查是否使用 hypercorn（支持 HTTP/2）
+    # 获取本机局域网 IP
+    import socket
+    host_ip = '0.0.0.0'
+    lan_ip = '127.0.0.1'
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('10.255.255.255', 1))
+        lan_ip = s.getsockname()[0]
+        s.close()
+    except:
+        pass
+
     if '--http2' in sys.argv:
         print("启动 HTTP/2 服务器（支持无限并发连接）...")
         import os
@@ -210,4 +235,4 @@ if __name__ == '__main__':
         print("启动 HTTP/1.1 服务器（最多 6 个并发连接）...")
         print("提示：使用 'python app.py --http2' 启用 HTTP/2 支持")
         import uvicorn
-        uvicorn.run(app, host='127.0.0.1', port=8111)
+        uvicorn.run(app, host=host_ip, port=8111)

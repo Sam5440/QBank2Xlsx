@@ -9,6 +9,7 @@ from header_utils import get_question_type
 
 async def call_ai_api(api_url, api_key, model, system_prompt, user_prompt):
     """通用 AI API 调用函数"""
+    model = model.strip()
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
             f"{api_url}/chat/completions",
@@ -30,6 +31,7 @@ async def call_ai_api(api_url, api_key, model, system_prompt, user_prompt):
 
 async def generate_questions_stream(api_url, api_key, model, question_types, user_input, system_prompt_override, directory):
     """流式生成题目"""
+    model = model.strip()
     with open('demo_questions.json', 'r', encoding='utf-8') as f:
         demo_data = json.load(f)
 
@@ -81,6 +83,7 @@ async def generate_filename(api_url, api_key, model, content):
 
 async def compare_files_stream(api_url, api_key, model, file_a, file_b):
     """流式对比两份文件"""
+    model = model.strip()
     prompt = COMPARE_PROMPT.replace('{file_a}', file_a).replace('{file_b}', file_b)
 
     async with httpx.AsyncClient(timeout=300.0) as client:
