@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import asyncio
 import json
 import httpx
 from utils import load_system_prompt
@@ -7,31 +8,7 @@ from config import DIRECTORY_EXTRACTION_PROMPT, FILENAME_GENERATION_PROMPT, COMP
 from header_utils import get_question_type
 
 
-async def call_ai_api(api_url, api_key, model, system_prompt, user_prompt):
-    """通用 AI API 调用函数"""
-    model = model.strip()
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"{api_url}/chat/completions",
-            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-            json={
-                'model': model,
-                'messages': [
-                    {'role': 'system', 'content': system_prompt},
-                    {'role': 'user', 'content': user_prompt}
-                ],
-                'stream': False
-            }
-        )
-        data = response.json()
-        if 'choices' in data and len(data['choices']) > 0:
-            return data['choices'][0]['message']['content'].strip()
-        return None
-
-
-async def generate_questions_stream(api_url, api_key, model, question_types, user_input, system_prompt_override, directory):
-    """流式生成题目"""
-    model = model.strip()
+def build_question_generation_prompt(question_types, user_input, system_prompt_override, directory):
     with open('demo_questions.json', 'r', encoding='utf-8') as f:
         demo_data = json.load(f)
 
@@ -46,6 +23,60 @@ async def generate_questions_stream(api_url, api_key, model, question_types, use
     system_prompt = system_prompt.replace('{{TOP}}', directory if directory else '无')
 
     user_prompt = f"用户需求：\n{user_input}\n\n请按照system prompt中的格式要求生成题目。"
+    return system_prompt, user_prompt
+
+
+def extract_json_content(text):
+    json_start_marker = "```json"
+    start_index = text.find(json_start_marker)
+
+    if start_index == -1:
+        first_brace = text.find('{')
+        last_brace = text.rfind('}')
+        if first_brace != -1 and last_brace > first_brace:
+            potential_json = text[first_brace:last_brace + 1]
+            try:
+                json.loads(potential_json)
+                return potential_json
+            except:
+                return ''
+        return ''
+
+    json_end_marker = "```"
+    end_index = text.find(json_end_marker, start_index + len(json_start_marker))
+    if end_index == -1:
+        return text[start_index + len(json_start_marker):].strip()
+
+    return text[start_index + len(json_start_marker):end_index].strip()
+
+
+async def call_ai_api(api_url, api_key, model, system_prompt, user_prompt, timeout=60.0):
+    """通用 AI API 调用函数"""
+    model = model.strip()
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(
+            f"{api_url}/chat/completions",
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json={
+                'model': model,
+                'messages': [
+                    {'role': 'system', 'content': system_prompt},
+                    {'role': 'user', 'content': user_prompt}
+                ],
+                'stream': False
+            }
+        )
+        response.raise_for_status()
+        data = response.json()
+        if 'choices' in data and len(data['choices']) > 0:
+            return data['choices'][0]['message']['content'].strip()
+        return None
+
+
+async def generate_questions_stream(api_url, api_key, model, question_types, user_input, system_prompt_override, directory):
+    """流式生成题目"""
+    model = model.strip()
+    system_prompt, user_prompt = build_question_generation_prompt(question_types, user_input, system_prompt_override, directory)
 
     async with httpx.AsyncClient(timeout=300.0) as client:
         async with client.stream(
@@ -67,6 +98,65 @@ async def generate_questions_stream(api_url, api_key, model, question_types, use
                                 yield f"data: {json.dumps({'text': delta['content']}, ensure_ascii=False)}\n\n"
                     except:
                         pass
+
+
+async def generate_questions_once(api_url, api_key, model, question_types, user_input, system_prompt_override, directory):
+    """非流式生成题目"""
+    system_prompt, user_prompt = build_question_generation_prompt(question_types, user_input, system_prompt_override, directory)
+    return await call_ai_api(api_url, api_key, model, system_prompt, user_prompt, timeout=300.0)
+
+
+async def generate_questions_batch(api_url, api_key, model, question_types, items, system_prompt_override, directory, concurrency=20):
+    """批量并发生成题目"""
+    try:
+        concurrency = int(concurrency)
+    except:
+        concurrency = 20
+    concurrency = max(1, concurrency)
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def generate_one(item):
+        item_id = item.get('id')
+        user_input = (item.get('text') or '').strip()
+        if not user_input:
+            return {
+                'id': item_id,
+                'text': item.get('text', ''),
+                'full': '',
+                'editable': '',
+                'questionCount': 0,
+                'error': '输入内容为空'
+            }
+
+        async with semaphore:
+            try:
+                full_text = await generate_questions_once(api_url, api_key, model, question_types, user_input, system_prompt_override, directory)
+                editable = extract_json_content(full_text or '')
+                question_count = 0
+                if editable:
+                    try:
+                        question_count = len(json.loads(editable).get('questions', []))
+                    except:
+                        question_count = 0
+                return {
+                    'id': item_id,
+                    'text': item.get('text', ''),
+                    'full': full_text or '',
+                    'editable': editable,
+                    'questionCount': question_count,
+                    'error': None
+                }
+            except Exception as e:
+                return {
+                    'id': item_id,
+                    'text': item.get('text', ''),
+                    'full': '',
+                    'editable': '',
+                    'questionCount': 0,
+                    'error': str(e)
+                }
+
+    return await asyncio.gather(*(generate_one(item) for item in items))
 
 
 async def extract_directory(api_url, api_key, model, content):

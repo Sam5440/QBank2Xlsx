@@ -323,6 +323,10 @@
         button.danger:hover {
             box-shadow: 0 6px 20px rgba(239,68,68,0.35);
         }
+        button.danger:disabled {
+            background: var(--border);
+            box-shadow: none;
+        }
         /* Output Areas */
         .output {
             background: #1E293B;
@@ -820,7 +824,10 @@
                     导入切分
                 </button>
             </div>
-            <input type="file" id="importFile" accept=".json" style="display: none;" onchange="handleImport(event)">
+            <input type="file" id="importFile" accept=".json,.txt,application/json,text/plain" multiple style="display: none;" onchange="handleImport(event)">
+            <div style="margin-top: 8px; font-size: 12px; color: #718096; line-height: 1.6;">
+                导入说明：可导入单个 split_inputs.json，或一次选择多个 .txt 文件；每个 .txt 会自动作为一个切分。导入会替换当前切分，建议先导出备份。
+            </div>
         </div>
 
         <div class="section">
@@ -858,8 +865,12 @@
                     生成题目
                 </button>
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                    <input type="checkbox" id="streamToggle" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <input type="checkbox" id="streamToggle" checked onchange="updateGenerationModeControls()" style="width: 18px; height: 18px; cursor: pointer;">
                     <span style="font-size: 14px; color: var(--text-primary);">流式输出</span>
+                </label>
+                <label id="batchConcurrencyGroup" style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 14px; color: var(--text-primary);">并发数</span>
+                    <input type="number" id="batchConcurrency" value="20" min="1" max="100" step="1" style="width: 76px; padding: 8px 10px;">
                 </label>
             </div>
         </div>
@@ -967,6 +978,9 @@
         let nextId = 1;
         let defaultSystemPrompt = '';
         let sampleData = {};
+        let activeGenerations = new Map();
+        let nextGenerationRunId = 1;
+        let batchGenerating = false;
 
         // 日志系统
         function addLog(action, detail = '') {
@@ -1378,6 +1392,149 @@
             }
         }
 
+        function escapeHTML(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function isPairGenerating(pairId) {
+            return activeGenerations.has(pairId);
+        }
+
+        function isPairStopping(pairId) {
+            return Boolean(activeGenerations.get(pairId)?.stopping);
+        }
+
+        function hasGeneratedOutput() {
+            return outputPairs.some(pair => pair.editable && pair.editable.trim());
+        }
+
+        function getBatchConcurrency() {
+            const input = document.getElementById('batchConcurrency');
+            const value = parseInt(input?.value, 10);
+            if (!Number.isFinite(value) || value < 1) {
+                if (input) input.value = 20;
+                return 20;
+            }
+
+            const normalized = Math.min(value, 100);
+            if (input && normalized !== value) {
+                input.value = normalized;
+            }
+            return normalized;
+        }
+
+        function updateGenerationModeControls() {
+            const streamToggle = document.getElementById('streamToggle');
+            const concurrencyInput = document.getElementById('batchConcurrency');
+            const concurrencyGroup = document.getElementById('batchConcurrencyGroup');
+            const isStreaming = streamToggle ? streamToggle.checked : true;
+            const isBusy = batchGenerating || activeGenerations.size > 0;
+
+            if (concurrencyInput) {
+                concurrencyInput.disabled = isStreaming || isBusy;
+            }
+            if (concurrencyGroup) {
+                concurrencyGroup.style.opacity = isStreaming ? '0.45' : '1';
+            }
+        }
+
+        function updateGlobalGenerationControls() {
+            const hasActiveGeneration = activeGenerations.size > 0;
+            const generateBtn = document.getElementById('generateBtn');
+            const exportBtn = document.getElementById('exportBtn');
+
+            if (generateBtn) {
+                generateBtn.disabled = batchGenerating || hasActiveGeneration;
+            }
+            if (exportBtn) {
+                if (hasActiveGeneration) {
+                    exportBtn.disabled = true;
+                } else if (hasGeneratedOutput()) {
+                    exportBtn.disabled = false;
+                }
+            }
+            updateGenerationModeControls();
+        }
+
+        function updateGenerationControls(pairId) {
+            const regenBtn = document.getElementById(`regen-${pairId}`);
+            const stopBtn = document.getElementById(`stop-gen-${pairId}`);
+            const generating = isPairGenerating(pairId);
+            const stopping = isPairStopping(pairId);
+
+            if (regenBtn) {
+                regenBtn.disabled = batchGenerating && !generating;
+                regenBtn.textContent = batchGenerating && !generating ? '🔄 批量生成中' : (generating ? '🔄 打断并重新生成' : '🔄 重新生成');
+            }
+            if (stopBtn) {
+                stopBtn.disabled = !generating || stopping;
+                stopBtn.textContent = stopping ? '⏹ 停止中' : '⏹ 停止';
+            }
+            updateGlobalGenerationControls();
+        }
+
+        function clearActiveGeneration(pairId, runId) {
+            const active = activeGenerations.get(pairId);
+            if (active && active.runId === runId) {
+                activeGenerations.delete(pairId);
+                updateGenerationControls(pairId);
+            }
+        }
+
+        function stopSingleGeneration(pairId, options = {}) {
+            const active = activeGenerations.get(pairId);
+            if (!active) return false;
+
+            active.stopping = true;
+            active.controller.abort();
+            if (options.forceClear) {
+                activeGenerations.delete(pairId);
+            }
+            updateGenerationControls(pairId);
+
+            if (!options.silent) {
+                addLog(`停止生成 #${pairId + 1}`, '已发送停止请求');
+            }
+            return true;
+        }
+
+        function stopAllGenerations(options = {}) {
+            const ids = Array.from(activeGenerations.keys());
+            ids.forEach(pairId => stopSingleGeneration(pairId, {...options, forceClear: true}));
+        }
+
+        function updateOutputFull(pairId, text, shouldScroll = false) {
+            const outputPair = outputPairs.find(pair => pair.id === pairId);
+            if (outputPair) {
+                outputPair.full = text;
+            }
+
+            const fullEl = document.getElementById(`full-${pairId}`);
+            if (fullEl) {
+                fullEl.textContent = text;
+                if (shouldScroll) {
+                    fullEl.scrollTop = fullEl.scrollHeight;
+                }
+            }
+        }
+
+        function updateOutputEditable(pairId, text) {
+            const outputPair = outputPairs.find(pair => pair.id === pairId);
+            if (outputPair) {
+                outputPair.editable = text;
+            }
+
+            const editableEl = document.getElementById(`editable-${pairId}`);
+            if (editableEl) {
+                editableEl.value = text;
+            }
+        }
+
         function addInputPair() {
             inputPairs.push({id: nextId++, text: ''});
             outputPairs.push({id: inputPairs[inputPairs.length - 1].id, editable: '', full: ''});
@@ -1389,6 +1546,7 @@
         function deleteInputPair(id) {
             const idx = inputPairs.findIndex(p => p.id === id);
             if (idx > -1 && inputPairs.length > 1) {
+                stopSingleGeneration(id, {silent: true, forceClear: true});
                 inputPairs.splice(idx, 1);
                 outputPairs.splice(idx, 1);
                 renderInputPairs();
@@ -1436,7 +1594,7 @@
                         <span style="font-size: 14px; color: #718096; font-weight: 600;">输入 #${pair.id + 1}</span>
                         <span class="char-count" id="count-${pair.id}">${pair.text.length} 字</span>
                     </div>
-                    <textarea id="input-${pair.id}" oninput="updateCharCount(${pair.id})" placeholder="请输入题目需求">${pair.text}</textarea>
+                    <textarea id="input-${pair.id}" oninput="updateCharCount(${pair.id})" placeholder="请输入题目需求">${escapeHTML(pair.text)}</textarea>
                     <div class="input-actions">
                         <button class="small" onclick="splitInputPair(${pair.id})">✂️ 切分</button>
                         ${inputPairs.length > 1 ? `<button class="small danger" onclick="deleteInputPair(${pair.id})">删除</button>` : ''}
@@ -1452,19 +1610,20 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <span style="font-size: 14px; color: #718096; font-weight: 600;">输出 #${pair.id + 1} <span id="q-count-${pair.id}" style="color: #6366f1;"></span></span>
                         <div style="display: flex; gap: 8px;">
-                            <button class="small" onclick="regenerateSingle(${pair.id})">🔄 重新生成</button>
+                            <button id="regen-${pair.id}" class="small" onclick="regenerateSingle(${pair.id})" ${batchGenerating && !isPairGenerating(pair.id) ? 'disabled' : ''}>${batchGenerating && !isPairGenerating(pair.id) ? '🔄 批量生成中' : (isPairGenerating(pair.id) ? '🔄 打断并重新生成' : '🔄 重新生成')}</button>
+                            <button id="stop-gen-${pair.id}" class="small danger" onclick="stopSingleGeneration(${pair.id})" ${isPairGenerating(pair.id) && !isPairStopping(pair.id) ? '' : 'disabled'}>${isPairStopping(pair.id) ? '⏹ 停止中' : '⏹ 停止'}</button>
                             <button class="small" onclick="compareSingle(${pair.id})">🔍 对比审核</button>
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <div>
                             <div style="font-size: 12px; color: #718096; margin-bottom: 8px;">📝 可编辑 JSON</div>
-                            <textarea class="output" id="editable-${pair.id}" oninput="validateJSON(${pair.id})" style="background: white; color: #2d3748; border: 2px solid #e2e8f0;" placeholder="等待生成...">${pair.editable}</textarea>
+                            <textarea class="output" id="editable-${pair.id}" oninput="validateJSON(${pair.id})" style="background: white; color: #2d3748; border: 2px solid #e2e8f0;" placeholder="等待生成...">${escapeHTML(pair.editable)}</textarea>
                             <div class="validation-error" id="validation-error-${pair.id}" style="display: none;"></div>
                         </div>
                         <div>
                             <div style="font-size: 12px; color: #718096; margin-bottom: 8px;">📄 完整输出</div>
-                            <div class="output" id="full-${pair.id}">${pair.full || '等待生成...'}</div>
+                            <div class="output" id="full-${pair.id}">${pair.full ? escapeHTML(pair.full) : '等待生成...'}</div>
                         </div>
                     </div>
                     <div id="compare-result-${pair.id}" style="margin-top: 10px; display: none;">
@@ -1491,26 +1650,78 @@
             document.getElementById('importFile').click();
         }
 
-        function handleImport(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
+        function decodeTextBuffer(buffer) {
+            try {
+                return new TextDecoder('utf-8', {fatal: true}).decode(buffer);
+            } catch (err) {
                 try {
-                    const data = JSON.parse(e.target.result);
-                    inputPairs = data.inputs.map((text, i) => ({id: i, text}));
-                    outputPairs = inputPairs.map(p => ({id: p.id, editable: '', full: ''}));
-                    nextId = inputPairs.length;
-                    renderInputPairs();
-                    renderOutputPairs();
-                    addLog('导入切分', `导入了 ${inputPairs.length} 个输入`);
-                } catch (err) {
-                    alert('导入失败: ' + err.message);
-                    addLog('导入切分失败', err.message);
+                    return new TextDecoder('gb18030').decode(buffer);
+                } catch (fallbackErr) {
+                    return new TextDecoder('utf-8').decode(buffer);
                 }
-            };
-            reader.readAsText(file);
-            event.target.value = '';
+            }
+        }
+
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(decodeTextBuffer(e.target.result));
+                reader.onerror = () => reject(new Error(`无法读取文件: ${file.name}`));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function isJsonFile(file) {
+            return /\.json$/i.test(file.name) || file.type === 'application/json';
+        }
+
+        function isTxtFile(file) {
+            return /\.txt$/i.test(file.name) || file.type === 'text/plain';
+        }
+
+        function applyImportedInputs(inputs, detail) {
+            stopAllGenerations({silent: true});
+            const normalizedInputs = inputs.map(text => String(text ?? ''));
+            if (normalizedInputs.length === 0) {
+                throw new Error('导入文件中没有可用输入');
+            }
+
+            inputPairs = normalizedInputs.map((text, i) => ({id: i, text}));
+            outputPairs = inputPairs.map(p => ({id: p.id, editable: '', full: ''}));
+            nextId = inputPairs.length;
+            renderInputPairs();
+            renderOutputPairs();
+            addLog('导入切分', detail);
+        }
+
+        async function handleImport(event) {
+            const files = Array.from(event.target.files || []);
+            if (files.length === 0) return;
+
+            try {
+                if (files.length === 1 && isJsonFile(files[0])) {
+                    const data = JSON.parse(await readFileAsText(files[0]));
+                    if (!data || !Array.isArray(data.inputs)) {
+                        throw new Error('JSON 文件格式不正确，应包含 inputs 数组');
+                    }
+                    applyImportedInputs(data.inputs, `从 JSON 导入了 ${data.inputs.length} 个输入`);
+                } else {
+                    const invalidFiles = files.filter(file => !isTxtFile(file));
+                    if (invalidFiles.length > 0) {
+                        throw new Error(`多文件导入仅支持 TXT，请检查: ${invalidFiles.map(file => file.name).join(', ')}`);
+                    }
+                    const importedTexts = await Promise.all(files.map(file => readFileAsText(file)));
+                    applyImportedInputs(
+                        importedTexts,
+                        `从 ${importedTexts.length} 个 TXT 文件导入了 ${importedTexts.length} 个输入`
+                    );
+                }
+            } catch (err) {
+                alert('导入失败: ' + err.message);
+                addLog('导入切分失败', err.message);
+            } finally {
+                event.target.value = '';
+            }
         }
 
         function extractJSON(text) {
@@ -1553,88 +1764,232 @@
             return jsonContent.trim();
         }
 
-        async function generateSingle(pairId, userInput) {
+        async function requestBatchGeneration(items, signal, concurrency = getBatchConcurrency()) {
             const selectedApi = apiConfigs.find(c => c.selected);
-            const idx = inputPairs.findIndex(p => p.id === pairId);
-            if (idx === -1) return;
-
-            outputPairs[idx].full = '正在生成中...\n\n';
-            outputPairs[idx].editable = ''; // Ensure editable is clear during streaming
-            const fullEl = document.getElementById(`full-${pairId}`);
-            const editableEl = document.getElementById(`editable-${pairId}`);
-            if (fullEl) fullEl.textContent = '正在生成中...\n\n';
-            if (editableEl) editableEl.value = ''; // Ensure editable is clear during streaming
-
-            const isStreaming = document.getElementById('streamToggle').checked;
-            const systemPrompt = document.getElementById('systemPrompt').value;
-
-            addLog(`AI生成题目 #${pairId + 1}`, `模型: ${selectedApi.model}, 题型: ${selectedTypes.join(', ')}, 流式: ${isStreaming ? '是' : '否'}`);
-
-            const response = await fetch('/api/generate', {
+            if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
+                throw new Error('API配置不完整');
+            }
+            const response = await fetch('/api/generate-batch', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal,
                 body: JSON.stringify({
                     apiUrl: selectedApi.url,
                     apiKey: selectedApi.key,
                     model: selectedApi.model,
                     questionTypes: selectedTypes,
-                    userInput,
-                    systemPrompt: systemPrompt,
-                    directory: document.getElementById('directory').value
+                    items,
+                    systemPrompt: document.getElementById('systemPrompt').value,
+                    directory: document.getElementById('directory').value,
+                    concurrency
                 })
             });
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
+            if (!response.ok) {
+                throw new Error(`请求失败: HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            if (!Array.isArray(data.results)) {
+                throw new Error('后台返回格式不正确');
+            }
+            return data;
+        }
+
+        function applyGenerationResult(result) {
+            if (!result) return false;
+
+            const pairId = result.id;
+            if (!outputPairs.some(pair => pair.id === pairId)) {
+                return false;
+            }
+
+            if (result.error) {
+                updateOutputFull(pairId, `❌ 生成失败: ${result.error}`);
+                updateOutputEditable(pairId, '');
+                validateJSON(pairId);
+                addLog(`生成异常 #${pairId + 1}`, result.error);
+                return false;
+            }
+
+            const fullText = result.full || '';
+            const editableText = result.editable || extractJSON(fullText);
+            updateOutputFull(pairId, fullText || '生成完成，但未返回内容');
+            updateOutputEditable(pairId, editableText || '');
+            validateJSON(pairId);
+
+            let questionCount = Number.isFinite(result.questionCount) ? result.questionCount : 0;
+            if (!questionCount && editableText) {
+                try {
+                    questionCount = (JSON.parse(editableText).questions || []).length;
+                } catch (e) {
+                    questionCount = 0;
+                }
+            }
+            addLog(`AI生成完成 #${pairId + 1}`, `生成了 ${questionCount} 道题目, 总字符: ${fullText.length}`);
+            return true;
+        }
+
+        async function generateSingleNonStreaming(pairId, userInput) {
+            const selectedApi = apiConfigs.find(c => c.selected);
+            if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
+                throw new Error('API配置不完整');
+            }
+            if (isPairGenerating(pairId)) {
+                stopSingleGeneration(pairId, {silent: true});
+            }
+
+            const controller = new AbortController();
+            const runId = nextGenerationRunId++;
+            const concurrency = getBatchConcurrency();
+            activeGenerations.set(pairId, {controller, runId, stopping: false});
+            updateGenerationControls(pairId);
+
+            updateOutputFull(pairId, '正在后台生成中...\n\n');
+            updateOutputEditable(pairId, '');
+
+            addLog(`AI生成题目 #${pairId + 1}`, `模型: ${selectedApi.model}, 题型: ${selectedTypes.join(', ')}, 流式: 否, 并发: ${concurrency}`);
+
+            try {
+                const data = await requestBatchGeneration([{id: pairId, text: userInput}], controller.signal, concurrency);
+                const active = activeGenerations.get(pairId);
+                if (!active || active.runId !== runId) {
+                    return {aborted: true, superseded: true};
+                }
+
+                const result = data.results.find(item => item.id === pairId) || data.results[0];
+                applyGenerationResult(result);
+                return {aborted: false, text: result?.full || '', result};
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    const active = activeGenerations.get(pairId);
+                    if (!active || active.runId !== runId) {
+                        return {aborted: true, superseded: true};
+                    }
+
+                    updateOutputFull(pairId, '已停止');
+                    addLog(`AI生成已停止 #${pairId + 1}`, '非流式请求已取消');
+                    return {aborted: true};
+                }
+                throw e;
+            } finally {
+                clearActiveGeneration(pairId, runId);
+            }
+        }
+
+        async function generateSingle(pairId, userInput) {
+            const selectedApi = apiConfigs.find(c => c.selected);
+            const idx = inputPairs.findIndex(p => p.id === pairId);
+            if (idx === -1) return;
+
+            const isStreaming = document.getElementById('streamToggle').checked;
+            if (!isStreaming) {
+                return await generateSingleNonStreaming(pairId, userInput);
+            }
+
+            if (isPairGenerating(pairId)) {
+                stopSingleGeneration(pairId, {silent: true});
+            }
+
+            const controller = new AbortController();
+            const runId = nextGenerationRunId++;
+            activeGenerations.set(pairId, {controller, runId, stopping: false});
+            updateGenerationControls(pairId);
+
+            updateOutputFull(pairId, '正在生成中...\n\n');
+            updateOutputEditable(pairId, '');
+
+            const systemPrompt = document.getElementById('systemPrompt').value;
             let fullText = '';
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            addLog(`AI生成题目 #${pairId + 1}`, `模型: ${selectedApi.model}, 题型: ${selectedTypes.join(', ')}, 流式: ${isStreaming ? '是' : '否'}`);
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: controller.signal,
+                    body: JSON.stringify({
+                        apiUrl: selectedApi.url,
+                        apiKey: selectedApi.key,
+                        model: selectedApi.model,
+                        questionTypes: selectedTypes,
+                        userInput,
+                        systemPrompt: systemPrompt,
+                        directory: document.getElementById('directory').value
+                    })
+                });
 
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = JSON.parse(line.slice(6));
-                        if (data.error) {
-                            throw new Error(data.error);
-                        } else if (data.text) {
-                            fullText += data.text;
-                            if (isStreaming) { // Only update full output if streaming is enabled
-                                outputPairs[idx].full = fullText;
-                                if (fullEl) {
-                                    fullEl.textContent = fullText;
-                                    fullEl.scrollTop = fullEl.scrollHeight;
+                if (!response.ok) {
+                    throw new Error(`请求失败: HTTP ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const active = activeGenerations.get(pairId);
+                    if (!active || active.runId !== runId) {
+                        return {aborted: true, superseded: true};
+                    }
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.error) {
+                                throw new Error(data.error);
+                            } else if (data.text) {
+                                fullText += data.text;
+                                if (isStreaming) {
+                                    updateOutputFull(pairId, fullText, true);
                                 }
                             }
-                            // Remove extractJSON and editableEl.value update during streaming
                         }
                     }
                 }
-            }
 
-            // After streaming is complete (or if not streaming at all)
-            // Ensure fullText is set for the full output display
-            if (!isStreaming) {
-                outputPairs[idx].full = fullText;
-                if (fullEl) fullEl.textContent = fullText;
-            }
-
-            // Extract and validate JSON ONLY ONCE after the full response is received
-            const extractedJsonContent = extractJSON(fullText);
-            if (extractedJsonContent) {
-                outputPairs[idx].editable = extractedJsonContent;
-                if (editableEl) {
-                    editableEl.value = extractedJsonContent;
+                if (!isStreaming) {
+                    updateOutputFull(pairId, fullText);
                 }
-            }
-            
-            validateJSON(pairId); // Validate once
 
-            const finalQuestionCount = extractedJsonContent ? (JSON.parse(extractedJsonContent).questions || []).length : 0;
-            addLog(`AI生成完成 #${pairId + 1}`, `生成了 ${finalQuestionCount} 道题目, 总字符: ${fullText.length}`);
+                const extractedJsonContent = extractJSON(fullText);
+                if (extractedJsonContent) {
+                    updateOutputEditable(pairId, extractedJsonContent);
+                }
+
+                validateJSON(pairId);
+
+                let finalQuestionCount = 0;
+                if (extractedJsonContent) {
+                    finalQuestionCount = (JSON.parse(extractedJsonContent).questions || []).length;
+                }
+                addLog(`AI生成完成 #${pairId + 1}`, `生成了 ${finalQuestionCount} 道题目, 总字符: ${fullText.length}`);
+                return {aborted: false, text: fullText};
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    const active = activeGenerations.get(pairId);
+                    if (!active || active.runId !== runId) {
+                        return {aborted: true, superseded: true};
+                    }
+
+                    const stoppedText = fullText ? `${fullText}\n\n[已停止]` : '已停止';
+                    updateOutputFull(pairId, stoppedText, true);
+                    addLog(`AI生成已停止 #${pairId + 1}`, `已保留 ${fullText.length} 个字符`);
+                    return {aborted: true};
+                }
+                throw e;
+            } finally {
+                clearActiveGeneration(pairId, runId);
+            }
         }
 
         async function regenerateSingle(pairId) {
@@ -1664,13 +2019,52 @@
                 return;
             }
 
-            addLog(`重新生成 #${pairId + 1}`, '开始重新生成题目');
+            const wasGenerating = isPairGenerating(pairId);
+            addLog(`重新生成 #${pairId + 1}`, wasGenerating ? '已打断当前生成，开始重新生成题目' : '开始重新生成题目');
             try {
-                await generateSingle(pairId, pair.text);
+                const result = await generateSingle(pairId, pair.text);
+                if (result?.aborted) return;
             } catch (e) {
                 error.textContent = `❌ 错误: ${e.message}`;
                 error.style.display = 'block';
                 addLog(`重新生成异常 #${pairId + 1}`, e.message);
+            }
+        }
+
+        async function generateQuestionsNonStreamingBatch(validInputCount, exportBtn) {
+            const error = document.getElementById('error');
+            const items = inputPairs
+                .filter(pair => pair.text.trim())
+                .map(pair => ({id: pair.id, text: pair.text}));
+            const concurrency = getBatchConcurrency();
+
+            batchGenerating = true;
+            updateGlobalGenerationControls();
+            inputPairs.forEach(pair => updateGenerationControls(pair.id));
+
+            items.forEach(item => {
+                updateOutputFull(item.id, '正在后台批量生成中...\n\n');
+                updateOutputEditable(item.id, '');
+                validateJSON(item.id);
+            });
+
+            addLog('开始后台批量生成', `共 ${validInputCount} 个输入, 并发: ${concurrency}, 题型: ${selectedTypes.join(', ')}`);
+
+            try {
+                const data = await requestBatchGeneration(items, undefined, concurrency);
+                data.results.forEach(result => applyGenerationResult(result));
+                addLog('后台批量生成完成', `成功 ${data.successCount} 个，失败 ${data.failedCount} 个`);
+            } catch (e) {
+                error.textContent = `❌ 批量生成失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('后台批量生成异常', e.message);
+            } finally {
+                batchGenerating = false;
+                inputPairs.forEach(pair => updateGenerationControls(pair.id));
+                updateGlobalGenerationControls();
+                if (activeGenerations.size === 0 && hasGeneratedOutput()) {
+                    exportBtn.disabled = false;
+                }
             }
         }
 
@@ -1706,23 +2100,37 @@
                 return;
             }
 
-            generateBtn.disabled = true;
             const validInputCount = inputPairs.filter(p => p.text.trim()).length;
+            if (!document.getElementById('streamToggle').checked) {
+                await generateQuestionsNonStreamingBatch(validInputCount, exportBtn);
+                return;
+            }
+
+            batchGenerating = true;
+            updateGlobalGenerationControls();
+            inputPairs.forEach(pair => updateGenerationControls(pair.id));
             addLog('开始批量生成', `共 ${validInputCount} 个输入, 题型: ${selectedTypes.join(', ')}`);
 
-            const promises = inputPairs.map(pair => {
-                if (!pair.text.trim()) return Promise.resolve();
-                return generateSingle(pair.id, pair.text).catch(e => {
-                    console.error(`生成失败 (输入 #${pair.id + 1}):`, e);
-                    addLog(`生成异常 #${pair.id + 1}`, e.message);
+            try {
+                const promises = inputPairs.map(pair => {
+                    if (!pair.text.trim()) return Promise.resolve();
+                    return generateSingle(pair.id, pair.text).catch(e => {
+                        console.error(`生成失败 (输入 #${pair.id + 1}):`, e);
+                        addLog(`生成异常 #${pair.id + 1}`, e.message);
+                    });
                 });
-            });
 
-            await Promise.all(promises);
+                await Promise.all(promises);
 
-            generateBtn.disabled = false;
-            exportBtn.disabled = false;
-            addLog('批量生成完成', `所有 ${validInputCount} 个输入已处理完成`);
+                addLog('批量生成完成', `所有 ${validInputCount} 个输入已处理完成`);
+            } finally {
+                batchGenerating = false;
+                inputPairs.forEach(pair => updateGenerationControls(pair.id));
+                updateGlobalGenerationControls();
+                if (activeGenerations.size === 0 && hasGeneratedOutput()) {
+                    exportBtn.disabled = false;
+                }
+            }
         }
 
         async function exportExcel() {
@@ -2216,6 +2624,7 @@
             await loadSystemPrompt();
             await loadQuestionTypes();
             renderLogs();
+            updateGenerationModeControls();
 
             const isMinimized = localStorage.getItem('logMinimized') === 'true';
             if (isMinimized) {

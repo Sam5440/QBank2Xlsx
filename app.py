@@ -7,7 +7,7 @@ import os
 import time
 import json
 from utils import get_or_create_key
-from ai_service import generate_questions_stream, extract_directory, generate_filename, compare_files_stream
+from ai_service import generate_questions_stream, generate_questions_batch, extract_directory, generate_filename, compare_files_stream
 from excel_service import export_to_excel
 from logger import log_api_call
 from header_utils import get_question_type
@@ -75,6 +75,22 @@ class GenerateRequest(BaseModel):
     userInput: str
     systemPrompt: str = ""
     directory: str = ""
+
+
+class GenerateBatchItem(BaseModel):
+    id: int
+    text: str
+
+
+class GenerateBatchRequest(BaseModel):
+    apiUrl: str
+    apiKey: str
+    model: str
+    questionTypes: list
+    items: list[GenerateBatchItem]
+    systemPrompt: str = ""
+    directory: str = ""
+    concurrency: int = 20
 
 
 class ExportRequest(BaseModel):
@@ -177,6 +193,30 @@ async def generate_questions(req: GenerateRequest):
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@app.post("/api/generate-batch")
+async def generate_questions_batch_endpoint(req: GenerateBatchRequest):
+    try:
+        results = await generate_questions_batch(
+            req.apiUrl,
+            req.apiKey,
+            req.model,
+            req.questionTypes,
+            [item.dict() for item in req.items],
+            req.systemPrompt,
+            req.directory,
+            req.concurrency
+        )
+        success_count = len([result for result in results if not result.get('error')])
+        return {
+            "results": results,
+            "total": len(results),
+            "successCount": success_count,
+            "failedCount": len(results) - success_count
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.post("/api/export")
