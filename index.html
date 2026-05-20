@@ -6,6 +6,8 @@
     <title>AI 题库生成器 - QBank2Xlsx</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="/themes.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -722,6 +724,895 @@
             border: 2px solid var(--border);
         }
 
+        /* Workbench redesign */
+        :root {
+            --primary: #2563EB;
+            --secondary: #059669;
+            --cta: #EA580C;
+            --background: #F5F7FB;
+            --surface: #FFFFFF;
+            --text-primary: #172033;
+            --text-secondary: #647084;
+            --border: #D8DEE8;
+            --success: #059669;
+            --error: #DC2626;
+            --warning: #D97706;
+            --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+            --shadow-md: 0 8px 20px rgba(15, 23, 42, 0.08);
+            --shadow-lg: 0 16px 36px rgba(15, 23, 42, 0.12);
+            --shadow-xl: 0 24px 48px rgba(15, 23, 42, 0.14);
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius-lg: 8px;
+            --radius-xl: 8px;
+        }
+
+        body {
+            padding: 0;
+            background: var(--background);
+            color: var(--text-primary);
+            font-family: 'Inter', 'Open Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1760px;
+            margin: 0 auto;
+            padding: 18px;
+            background: transparent;
+            border-radius: 0;
+            box-shadow: none;
+            backdrop-filter: none;
+        }
+
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 60;
+            margin: 0 0 14px;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(14px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: var(--radius-md);
+            background: var(--primary);
+            box-shadow: none;
+        }
+
+        .header-icon svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        h1 {
+            font-size: 22px;
+            line-height: 1.2;
+            letter-spacing: 0;
+        }
+
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: minmax(360px, 430px) minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+        }
+
+        .workspace-column {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        .setup-column {
+            position: sticky;
+            top: 78px;
+            max-height: calc(100vh - 96px);
+            overflow: auto;
+            padding-right: 2px;
+        }
+
+        .setup-column::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .setup-column::-webkit-scrollbar-thumb {
+            background: #C7D0DD;
+            border-radius: 999px;
+        }
+
+        .section {
+            margin: 0;
+            padding: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .section:hover {
+            border-color: #B8C4D6;
+            box-shadow: var(--shadow-sm);
+            transform: none;
+        }
+
+        .section-title,
+        .modal-title {
+            margin-bottom: 12px;
+            font-family: 'Inter', 'Open Sans', sans-serif;
+            font-size: 14px;
+            line-height: 1.3;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+
+        .section-title svg {
+            width: 17px;
+            height: 17px;
+        }
+
+        .type-picker-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border: 1px solid #DDE6F2;
+            border-radius: var(--radius-lg);
+            background: linear-gradient(135deg, #F8FBFF 0%, #F3F7F1 100%);
+        }
+
+        .type-picker-kicker {
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .type-summary {
+            margin-top: 2px;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .type-picker-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .type-picker-actions button {
+            min-height: 30px;
+            padding: 6px 9px;
+            border-color: #CBD7E6;
+            background: #FFFFFF;
+            color: var(--text-primary);
+        }
+
+        .type-picker-actions button:hover {
+            background: #EDF4FF;
+            color: var(--primary);
+        }
+
+        .question-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
+            gap: 10px;
+        }
+
+        .type-item {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 112px;
+            padding: 10px;
+            border: 1px solid #D7E0EC;
+            border-radius: var(--radius-lg);
+            background: #FFFFFF;
+            box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+        }
+
+        .type-item:hover {
+            border-color: #AFC0D6;
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+            transform: none;
+        }
+
+        .type-item.active {
+            border-color: var(--primary);
+            background: linear-gradient(180deg, #EFF6FF 0%, #FFFFFF 100%);
+            box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.35), 0 10px 22px rgba(37, 99, 235, 0.10);
+        }
+
+        .type-card-main {
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1fr);
+            gap: 8px;
+            align-items: start;
+            width: 100%;
+            min-height: 54px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: var(--text-primary);
+            text-align: left;
+            box-shadow: none;
+            white-space: normal;
+        }
+
+        .type-card-main:hover {
+            background: transparent;
+            box-shadow: none;
+        }
+
+        .type-check {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border: 1px solid #CAD6E6;
+            border-radius: var(--radius-md);
+            color: transparent;
+            background: #F8FAFC;
+        }
+
+        .type-check svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .type-item.active .type-check {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: #FFFFFF;
+        }
+
+        .type-name {
+            display: block;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+
+        .type-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 5px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .type-meta svg {
+            width: 14px;
+            height: 14px;
+            color: var(--secondary);
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 6px;
+            border-left: 0;
+        }
+
+        .action-btns button {
+            min-width: 0;
+            min-height: 30px;
+            flex: 1;
+            justify-content: center;
+            padding: 6px 8px;
+            border: 1px solid #D7E0EC;
+            border-radius: var(--radius-md);
+            background: #F8FAFC;
+            color: var(--text-secondary);
+            box-shadow: none;
+        }
+
+        .action-btns button:first-child {
+            border-left: 1px solid #D7E0EC;
+        }
+
+        .action-btns button:hover {
+            background: #EDF4FF;
+            color: var(--primary);
+        }
+
+        .type-item.active .action-btns button {
+            border-color: #C5D9F8;
+            color: var(--primary);
+        }
+
+        .type-item.active .type-name {
+            color: var(--primary);
+        }
+
+        .compare-markdown {
+            min-height: 220px;
+            max-height: 480px;
+            overflow: auto;
+            padding: 14px 15px;
+            border: 1px solid #D7E0EC;
+            border-radius: var(--radius-md);
+            background: #FFFFFF;
+            color: var(--text-primary);
+            font-size: 13px;
+            line-height: 1.72;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .compare-markdown h1,
+        .compare-markdown h2,
+        .compare-markdown h3,
+        .compare-markdown h4 {
+            margin: 0 0 10px;
+            line-height: 1.3;
+        }
+
+        .compare-markdown h1 { font-size: 20px; }
+        .compare-markdown h2 { font-size: 17px; }
+        .compare-markdown h3 { font-size: 15px; }
+        .compare-markdown h4 { font-size: 14px; }
+
+        .compare-markdown p,
+        .compare-markdown ul,
+        .compare-markdown ol,
+        .compare-markdown blockquote,
+        .compare-markdown pre,
+        .compare-markdown table {
+            margin: 0 0 12px;
+        }
+
+        .compare-markdown p:last-child,
+        .compare-markdown ul:last-child,
+        .compare-markdown ol:last-child,
+        .compare-markdown blockquote:last-child,
+        .compare-markdown pre:last-child,
+        .compare-markdown table:last-child {
+            margin-bottom: 0;
+        }
+
+        .compare-markdown ul,
+        .compare-markdown ol {
+            padding-left: 20px;
+        }
+
+        .compare-markdown li + li {
+            margin-top: 4px;
+        }
+
+        .compare-markdown blockquote {
+            padding: 10px 12px;
+            border-left: 3px solid var(--primary);
+            background: #F8FBFF;
+            color: var(--text-secondary);
+        }
+
+        .compare-markdown code {
+            padding: 2px 5px;
+            border-radius: 4px;
+            background: #EEF3FA;
+            font-size: 12px;
+        }
+
+        .compare-markdown pre {
+            overflow: auto;
+            padding: 12px;
+            border-radius: var(--radius-md);
+            background: #0F172A;
+            color: #E2E8F0;
+        }
+
+        .compare-markdown pre code {
+            padding: 0;
+            background: transparent;
+            color: inherit;
+        }
+
+        .compare-markdown table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .compare-markdown th,
+        .compare-markdown td {
+            padding: 8px 10px;
+            border: 1px solid #D7E0EC;
+            vertical-align: top;
+            text-align: left;
+        }
+
+        .compare-markdown th {
+            background: #F8FAFC;
+            font-weight: 700;
+        }
+
+        .compare-chat-panel {
+            margin-top: 12px;
+            padding: 12px;
+            border: 1px solid #D7E0EC;
+            border-radius: var(--radius-lg);
+            background: #F8FAFC;
+        }
+
+        .compare-chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .compare-chat-thread {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 120px;
+            max-height: 240px;
+            overflow: auto;
+            margin-bottom: 10px;
+            padding-right: 2px;
+        }
+
+        .chat-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 96px;
+            border: 1px dashed #CAD6E6;
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-size: 13px;
+            background: #FFFFFF;
+        }
+
+        .chat-bubble {
+            max-width: min(92%, 760px);
+            padding: 10px 12px;
+            border-radius: var(--radius-lg);
+            border: 1px solid transparent;
+            font-size: 13px;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .chat-bubble.user {
+            align-self: flex-end;
+            background: #DBEAFE;
+            border-color: #BFDBFE;
+            color: #0F172A;
+        }
+
+        .chat-bubble.assistant {
+            align-self: flex-start;
+            background: #FFFFFF;
+            border-color: #D7E0EC;
+            color: var(--text-primary);
+            white-space: normal;
+        }
+
+        .chat-input-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .chat-input-row textarea {
+            min-height: 90px;
+            resize: vertical;
+        }
+
+        .notice-tip {
+            padding: 10px 12px;
+            border: 1px solid #FCA5A5;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+
+        input, textarea, select {
+            padding: 10px 11px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-family: 'Inter', 'Open Sans', sans-serif;
+            font-size: 13px;
+            background: #FFFFFF;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        input:hover, textarea:hover, select:hover {
+            border-color: #B8C4D6;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+
+        textarea {
+            min-height: 132px;
+            line-height: 1.6;
+            font-family: 'SF Mono', 'Cascadia Mono', 'Consolas', monospace;
+        }
+
+        .api-config {
+            gap: 10px;
+        }
+
+        .api-row {
+            grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr);
+            gap: 8px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: #FFFFFF;
+            box-shadow: none;
+        }
+
+        .api-row input[type="radio"] {
+            grid-row: 1 / span 3;
+            align-self: center;
+            width: 18px;
+            height: 18px;
+        }
+
+        .api-row input[placeholder="名称"],
+        .api-row input[type="password"] {
+            grid-column: 2;
+        }
+
+        .api-row input[placeholder="API URL"],
+        .api-row input[placeholder="Model"] {
+            grid-column: 3;
+        }
+
+        .api-row button {
+            grid-column: 2 / -1;
+            justify-content: center;
+        }
+
+        button {
+            min-height: 38px;
+            padding: 9px 14px;
+            border: 1px solid transparent;
+            border-radius: var(--radius-md);
+            background: var(--primary);
+            box-shadow: none;
+            font-family: 'Inter', 'Open Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.2;
+            white-space: nowrap;
+            transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        button:hover {
+            transform: none;
+            box-shadow: var(--shadow-sm);
+            background: #1D4ED8;
+        }
+
+        button.small {
+            min-height: 34px;
+            padding: 8px 11px;
+            font-size: 13px;
+            box-shadow: none;
+        }
+
+        button.danger {
+            background: #DC2626;
+            box-shadow: none;
+        }
+
+        button.danger:hover {
+            background: #B91C1C;
+            box-shadow: var(--shadow-sm);
+        }
+
+        button:disabled,
+        button.danger:disabled {
+            background: #E5EAF1;
+            color: #8A94A6;
+            border-color: #E5EAF1;
+            opacity: 1;
+        }
+
+        .input-pair {
+            margin-bottom: 12px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: #FFFFFF;
+        }
+
+        .input-header {
+            margin-bottom: 8px;
+        }
+
+        .char-count {
+            font-size: 12px;
+            color: var(--secondary);
+        }
+
+        .input-actions,
+        .actions {
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .output-pair {
+            margin-bottom: 14px;
+            padding: 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: #FFFFFF;
+        }
+
+        .output-pair:last-child {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .output-pair-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .output-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .output-grid,
+        .compare-files-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 12px;
+        }
+
+        .field-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .field-label svg {
+            width: 15px;
+            height: 15px;
+        }
+
+        .output {
+            min-height: 190px;
+            max-height: 420px;
+            padding: 12px;
+            border: 1px solid #223148;
+            border-radius: var(--radius-md);
+            background: #111827;
+            color: #E5E7EB;
+            font-size: 12px;
+            line-height: 1.6;
+            box-shadow: none;
+        }
+
+        textarea.output {
+            background: #FFFFFF !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border) !important;
+        }
+
+        .output.invalid {
+            border: 1px solid var(--error) !important;
+            background: #FFF7F7 !important;
+            color: var(--error) !important;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.08);
+        }
+
+        .error {
+            padding: 10px 12px;
+            border: 1px solid #FECACA;
+            border-left: 3px solid var(--error);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+        }
+
+        .actions {
+            margin-top: 0;
+            padding: 14px 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .log-panel {
+            top: auto;
+            right: 74px;
+            bottom: 18px;
+            left: auto;
+            transform: none;
+            width: 340px;
+            height: 300px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .log-panel.minimized {
+            width: 190px;
+            height: auto;
+            min-width: 0;
+            min-height: 0;
+            resize: none;
+        }
+
+        .log-panel.minimized .log-content {
+            display: none;
+        }
+
+        .log-header {
+            padding: 10px 12px;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            background: #172033;
+            font-size: 13px;
+        }
+
+        .log-entry {
+            padding: 8px 10px;
+            border-left-color: var(--secondary);
+            background: #F7F9FC;
+        }
+
+        .btn-clear {
+            min-height: 28px;
+            padding: 4px 9px;
+            font-size: 12px;
+        }
+
+        .modal {
+            background: rgba(15, 23, 42, 0.56);
+        }
+
+        .modal-content {
+            padding: 20px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+        }
+
+        .theme-switcher {
+            bottom: 18px;
+            right: 18px;
+        }
+
+        .theme-toggle-btn {
+            width: 46px;
+            height: 46px;
+            border-radius: var(--radius-lg);
+            background: #172033;
+        }
+
+        .theme-toggle-btn:hover {
+            transform: none;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .theme-panel,
+        .theme-card {
+            border-radius: var(--radius-lg);
+        }
+
+        .theme-card {
+            border: 1px solid var(--border);
+            background: #FFFFFF;
+        }
+
+        .theme-color-dot {
+            border-radius: var(--radius-sm);
+        }
+
+        @media (max-width: 1180px) {
+            .container {
+                padding: 12px;
+            }
+
+            .workspace-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .setup-column {
+                position: static;
+                max-height: none;
+                overflow: visible;
+            }
+
+            .log-panel {
+                width: min(360px, calc(100vw - 24px));
+                right: 12px;
+                top: 76px;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .header {
+                position: static;
+            }
+
+            .section {
+                padding: 12px;
+            }
+
+            .question-types,
+            .output-grid,
+            .compare-files-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .type-picker-head,
+            .compare-chat-header,
+            .chat-input-row {
+                grid-template-columns: 1fr;
+                align-items: stretch;
+            }
+
+            .type-picker-head {
+                flex-direction: column;
+            }
+
+            .type-picker-actions,
+            .compare-chat-header {
+                justify-content: flex-start;
+            }
+
+            .api-row {
+                grid-template-columns: 28px 1fr;
+            }
+
+            .api-row input:not([type="radio"]),
+            .api-row button {
+                grid-column: 1 / -1;
+            }
+
+            .output-pair-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .output-actions {
+                justify-content: flex-start;
+            }
+
+            .log-panel {
+                top: auto;
+                right: 12px;
+                bottom: 74px;
+                height: 300px;
+            }
+        }
+
         /* Reduced motion support */
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
@@ -746,14 +1637,14 @@
     </style>
 </head>
 <body>
-    <div class="log-panel" id="logPanel">
+    <div class="log-panel minimized" id="logPanel">
         <div class="log-header" id="logHeader">
             <span style="display: flex; align-items: center; gap: 8px;">
                 <i data-lucide="clipboard-list" style="width: 18px; height: 18px;"></i>
                 操作日志
             </span>
             <div class="log-header-buttons">
-                <button class="btn-clear" onclick="toggleMinimize()">−</button>
+                <button class="btn-clear" onclick="toggleMinimize()">+</button>
                 <button class="btn-clear" onclick="clearLogs()">清空</button>
             </div>
         </div>
@@ -767,13 +1658,15 @@
             <h1>AI 题库生成器</h1>
         </div>
 
+        <div class="workspace-grid">
+            <div class="workspace-column setup-column">
         <div class="section">
             <div class="section-title">
                 <i data-lucide="list-checks"></i>
                 选择题型（可多选）
             </div>
             <div id="noticeTipContainer"></div>
-            <div class="question-types" id="questionTypesContainer">
+            <div class="type-picker" id="questionTypesContainer">
                 <div style="color: #718096; padding: 20px; text-align: center;">加载中...</div>
             </div>
         </div>
@@ -788,46 +1681,6 @@
                 <i data-lucide="plus"></i>
                 添加 API 配置
             </button>
-        </div>
-
-        <div class="section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <div class="section-title" style="margin: 0;">
-                    <i data-lucide="file-text"></i>
-                    系统提示词
-                </div>
-                <button class="small" onclick="resetSystemPrompt()">
-                    <i data-lucide="refresh-cw"></i>
-                    还原默认
-                </button>
-            </div>
-            <textarea id="systemPrompt" style="min-height: 200px; font-family: 'Courier New', monospace;"></textarea>
-        </div>
-
-        <div class="section">
-            <div class="section-title">
-                <i data-lucide="edit-3"></i>
-                输入题目需求
-            </div>
-            <div id="inputPairs"></div>
-            <div style="display: flex; gap: 10px; margin-top: 10px;">
-                <button class="small" onclick="addInputPair()">
-                    <i data-lucide="plus"></i>
-                    添加输入
-                </button>
-                <button class="small" onclick="exportInputs()">
-                    <i data-lucide="save"></i>
-                    导出切分
-                </button>
-                <button class="small" onclick="importInputs()">
-                    <i data-lucide="folder-open"></i>
-                    导入切分
-                </button>
-            </div>
-            <input type="file" id="importFile" accept=".json,.txt,application/json,text/plain" multiple style="display: none;" onchange="handleImport(event)">
-            <div style="margin-top: 8px; font-size: 12px; color: #718096; line-height: 1.6;">
-                导入说明：可导入单个 split_inputs.json，或一次选择多个 .txt 文件；每个 .txt 会自动作为一个切分。导入会替换当前切分，建议先导出备份。
-            </div>
         </div>
 
         <div class="section">
@@ -876,6 +1729,45 @@
         </div>
 
         <div class="section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div class="section-title" style="margin: 0;">
+                    <i data-lucide="file-text"></i>
+                    系统提示词
+                </div>
+                <button class="small" onclick="resetSystemPrompt()">
+                    <i data-lucide="refresh-cw"></i>
+                    还原默认
+                </button>
+            </div>
+            <textarea id="systemPrompt" style="min-height: 240px; font-family: 'Courier New', monospace;"></textarea>
+        </div>
+
+            </div>
+            <div class="workspace-column output-column">
+        <div class="section">
+            <div class="section-title">
+                <i data-lucide="edit-3"></i>
+                输入题目需求
+            </div>
+            <div id="inputPairs"></div>
+            <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                <button class="small" onclick="addInputPair()">
+                    <i data-lucide="plus"></i>
+                    添加输入
+                </button>
+                <button class="small" onclick="exportInputs()">
+                    <i data-lucide="save"></i>
+                    导出切分
+                </button>
+                <button class="small" onclick="importInputs()">
+                    <i data-lucide="folder-open"></i>
+                    导入切分
+                </button>
+            </div>
+            <input type="file" id="importFile" accept=".json,.txt,application/json,text/plain" multiple style="display: none;" onchange="handleImport(event)">
+        </div>
+
+        <div class="section">
             <div class="section-title">
                 <i data-lucide="sparkles"></i>
                 AI 生成结果
@@ -899,16 +1791,16 @@
                     添加序号
                 </button>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div class="compare-files-grid" style="margin-bottom: 15px;">
                 <div>
-                    <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 600;">
+                    <div class="field-label">
                         <i data-lucide="file-check" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
                         文件 A（生成的题目） <span id="file-a-q-count" style="color: var(--primary);"></span>
                     </div>
                     <textarea id="fileA" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..."></textarea>
                 </div>
                 <div>
-                    <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 600;">
+                    <div class="field-label">
                         <i data-lucide="clipboard-list" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
                         文件 B（原始需求）
                     </div>
@@ -928,11 +1820,33 @@
                 </button>
             </div>
             <div>
-                <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 600;">
+                <div class="field-label">
                     <i data-lucide="bar-chart-3" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
                     对比结果
                 </div>
-                <div class="output" id="compareResult">等待对比...</div>
+                <div class="compare-markdown" id="compareResult" data-raw-text="">等待对比...</div>
+                <div class="compare-chat-panel">
+                    <div class="compare-chat-header">
+                        <div class="field-label" style="margin: 0;">
+                            <i data-lucide="messages-square"></i>
+                            基于对比结果继续提问
+                        </div>
+                        <button class="small" onclick="clearCompareChat()">
+                            <i data-lucide="eraser"></i>
+                            清空对话
+                        </button>
+                    </div>
+                    <div class="compare-chat-thread" id="compareChatThread">
+                        <div class="chat-empty">完成对比后，可在这里继续追问修改建议、缺漏原因或输出修订方案。</div>
+                    </div>
+                    <div class="chat-input-row">
+                        <textarea id="compareChatInput" placeholder="例如：请按严重程度列出需要修改的题目，并给出具体修改建议。"></textarea>
+                        <button id="compareChatBtn" onclick="askCompareFollowup()">
+                            <i data-lucide="send"></i>
+                            发送
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -941,6 +1855,8 @@
                 <i data-lucide="download"></i>
                 导出 Excel
             </button>
+        </div>
+            </div>
         </div>
     </div>
 
@@ -981,6 +1897,13 @@
         let activeGenerations = new Map();
         let nextGenerationRunId = 1;
         let batchGenerating = false;
+        let availableQuestionTypes = [];
+        let compareContext = {
+            compareResult: '',
+            fileA: '',
+            fileB: ''
+        };
+        let compareChatHistory = [];
 
         // 日志系统
         function addLog(action, detail = '') {
@@ -1072,6 +1995,7 @@
 
                 sampleData = data.sampleData;
                 const types = data.questionTypes || [];
+                availableQuestionTypes = types;
                 const noticeTip = data.noticeTip;
 
                 // Display notice tip if exists
@@ -1096,18 +2020,53 @@
                 });
 
                 const container = document.getElementById('questionTypesContainer');
-                container.innerHTML = types.map(type =>
-                    `<div class="type-item" data-type="${type}">
-                        <button class="type-btn">${type}</button>
-                        <div class="action-btns">
-                            <button onclick="showExplanation('${type}')" title="说明">明</button>
-                            <button onclick="previewJSON('${type}')" title="预览示例">${typeCounts[type]}</button>
+                container.innerHTML = `
+                    <div class="type-picker-head">
+                        <div>
+                            <div class="type-picker-kicker">QUESTION TYPES</div>
+                            <div class="type-summary" id="typeSummary">尚未选择题型</div>
                         </div>
-                    </div>`
-                ).join('');
+                        <div class="type-picker-actions">
+                            <button class="small" onclick="selectAllQuestionTypes()">
+                                <i data-lucide="check-check"></i>
+                                全选
+                            </button>
+                            <button class="small" onclick="clearQuestionTypes()">
+                                <i data-lucide="x"></i>
+                                清空
+                            </button>
+                        </div>
+                    </div>
+                    <div class="question-types">
+                        ${types.map(type => `
+                            <div class="type-item" data-type="${escapeHTML(type)}">
+                                <button class="type-card-main" type="button" aria-pressed="false">
+                                    <span class="type-check"><i data-lucide="check"></i></span>
+                                    <span>
+                                        <span class="type-name">${escapeHTML(type)}</span>
+                                        <span class="type-meta">
+                                            <i data-lucide="layers-3"></i>
+                                            ${typeCounts[type]} 个示例
+                                        </span>
+                                    </span>
+                                </button>
+                                <div class="action-btns">
+                                    <button type="button" onclick="event.stopPropagation(); showExplanation(this.closest('.type-item').dataset.type)" title="查看说明">
+                                        <i data-lucide="info"></i>
+                                        说明
+                                    </button>
+                                    <button type="button" onclick="event.stopPropagation(); previewJSON(this.closest('.type-item').dataset.type)" title="预览示例">
+                                        <i data-lucide="eye"></i>
+                                        示例
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
 
                 document.querySelectorAll('.type-item').forEach(item => {
-                    const typeBtn = item.querySelector('.type-btn');
+                    const typeBtn = item.querySelector('.type-card-main');
                     typeBtn.addEventListener('click', () => {
                         const type = item.dataset.type;
                         item.classList.toggle('active');
@@ -1118,7 +2077,9 @@
                             selectedTypes.push(type);
                             addLog('选择题型', type);
                         }
+                        typeBtn.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
                         setCookie('questionTypes', encrypt(JSON.stringify(selectedTypes)));
+                        updateTypeSummary();
                     });
                 });
 
@@ -1126,14 +2087,16 @@
                 if (savedTypes) {
                     const decrypted = decrypt(savedTypes);
                     if (decrypted) {
-                        selectedTypes = JSON.parse(decrypted);
-                        selectedTypes.forEach(type => {
-                            document.querySelector(`.type-item[data-type="${type}"]`)?.classList.add('active');
-                        });
+                        const restoredTypes = JSON.parse(decrypted);
+                        setSelectedTypes(restoredTypes);
                     }
                 }
+                updateTypeSummary();
 
                 addLog('加载题型', `共 ${types.length} 种题型`);
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
             } catch (e) {
                 console.error('加载题型失败:', e);
                 document.getElementById('questionTypesContainer').innerHTML =
@@ -1401,6 +2364,56 @@
                 .replace(/'/g, '&#39;');
         }
 
+        function renderMarkdown(text) {
+            const source = String(text || '');
+            if (!source.trim()) return '';
+            if (window.marked && window.DOMPurify) {
+                marked.setOptions({breaks: true, gfm: true});
+                return DOMPurify.sanitize(marked.parse(source));
+            }
+            return escapeHTML(source).replace(/\n/g, '<br>');
+        }
+
+        function updateMarkdownElement(element, text, fallback = '') {
+            if (!element) return;
+            const raw = String(text || '');
+            element.dataset.rawText = raw;
+            element.innerHTML = raw.trim() ? renderMarkdown(raw) : escapeHTML(fallback);
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function getCompareResultText() {
+            const resultEl = document.getElementById('compareResult');
+            return resultEl?.dataset.rawText || resultEl?.textContent || '';
+        }
+
+        function updateTypeSummary() {
+            const summary = document.getElementById('typeSummary');
+            if (!summary) return;
+            summary.textContent = selectedTypes.length
+                ? `已选择 ${selectedTypes.length} 项：${selectedTypes.join('、')}`
+                : '尚未选择题型';
+        }
+
+        function setSelectedTypes(types) {
+            selectedTypes = [...new Set(types.filter(Boolean))];
+            document.querySelectorAll('.type-item').forEach(item => {
+                item.classList.toggle('active', selectedTypes.includes(item.dataset.type));
+            });
+            setCookie('questionTypes', encrypt(JSON.stringify(selectedTypes)));
+            updateTypeSummary();
+        }
+
+        function selectAllQuestionTypes() {
+            setSelectedTypes(availableQuestionTypes);
+            addLog('选择全部题型', `共 ${selectedTypes.length} 种题型`);
+        }
+
+        function clearQuestionTypes() {
+            setSelectedTypes([]);
+            addLog('清空题型', '已取消全部题型选择');
+        }
+
         function isPairGenerating(pairId) {
             return activeGenerations.has(pairId);
         }
@@ -1607,28 +2620,28 @@
             const container = document.getElementById('outputPairs');
             container.innerHTML = outputPairs.map((pair, idx) => `
                 <div class="output-pair">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div class="output-pair-header">
                         <span style="font-size: 14px; color: #718096; font-weight: 600;">输出 #${pair.id + 1} <span id="q-count-${pair.id}" style="color: #6366f1;"></span></span>
-                        <div style="display: flex; gap: 8px;">
+                        <div class="output-actions">
                             <button id="regen-${pair.id}" class="small" onclick="regenerateSingle(${pair.id})" ${batchGenerating && !isPairGenerating(pair.id) ? 'disabled' : ''}>${batchGenerating && !isPairGenerating(pair.id) ? '🔄 批量生成中' : (isPairGenerating(pair.id) ? '🔄 打断并重新生成' : '🔄 重新生成')}</button>
                             <button id="stop-gen-${pair.id}" class="small danger" onclick="stopSingleGeneration(${pair.id})" ${isPairGenerating(pair.id) && !isPairStopping(pair.id) ? '' : 'disabled'}>${isPairStopping(pair.id) ? '⏹ 停止中' : '⏹ 停止'}</button>
                             <button class="small" onclick="compareSingle(${pair.id})">🔍 对比审核</button>
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="output-grid">
                         <div>
-                            <div style="font-size: 12px; color: #718096; margin-bottom: 8px;">📝 可编辑 JSON</div>
+                            <div class="field-label">可编辑 JSON</div>
                             <textarea class="output" id="editable-${pair.id}" oninput="validateJSON(${pair.id})" style="background: white; color: #2d3748; border: 2px solid #e2e8f0;" placeholder="等待生成...">${escapeHTML(pair.editable)}</textarea>
                             <div class="validation-error" id="validation-error-${pair.id}" style="display: none;"></div>
                         </div>
                         <div>
-                            <div style="font-size: 12px; color: #718096; margin-bottom: 8px;">📄 完整输出</div>
+                            <div class="field-label">完整输出</div>
                             <div class="output" id="full-${pair.id}">${pair.full ? escapeHTML(pair.full) : '等待生成...'}</div>
                         </div>
                     </div>
                     <div id="compare-result-${pair.id}" style="margin-top: 10px; display: none;">
-                        <div style="font-size: 12px; color: #718096; margin-bottom: 8px; font-weight: 600;">📊 对比结果</div>
-                        <div class="output" id="compare-output-${pair.id}">等待对比...</div>
+                        <div class="field-label">对比结果</div>
+                        <div class="compare-markdown" id="compare-output-${pair.id}" data-raw-text="">等待对比...</div>
                     </div>
                 </div>
             `).join('');
@@ -2413,6 +3426,151 @@
             addLog('生成文件B', `输入数: ${inputPairs.filter(p => p.text.trim()).length}`);
         }
 
+        async function readEventStream(response, onText) {
+            if (!response.ok) {
+                throw new Error(`请求失败: HTTP ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, {stream: true});
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const data = JSON.parse(line.slice(6));
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    if (data.text) {
+                        onText(data.text);
+                    }
+                }
+            }
+        }
+
+        function renderCompareChat() {
+            const thread = document.getElementById('compareChatThread');
+            if (!thread) return;
+
+            if (compareChatHistory.length === 0) {
+                thread.innerHTML = '<div class="chat-empty">完成对比后，可在这里继续追问修改建议、缺漏原因或输出修订方案。</div>';
+                return;
+            }
+
+            thread.innerHTML = compareChatHistory.map(item => {
+                const roleClass = item.role === 'user' ? 'user' : 'assistant';
+                const content = item.role === 'assistant'
+                    ? renderMarkdown(item.content)
+                    : escapeHTML(item.content);
+                return `<div class="chat-bubble ${roleClass}">${content}</div>`;
+            }).join('');
+            thread.scrollTop = thread.scrollHeight;
+        }
+
+        function clearCompareChat() {
+            compareChatHistory = [];
+            renderCompareChat();
+            addLog('清空对比追问', '已清空当前对话');
+        }
+
+        function resetCompareState() {
+            const resultEl = document.getElementById('compareResult');
+            if (resultEl) {
+                resultEl.dataset.rawText = '';
+            }
+            compareContext = {compareResult: '', fileA: '', fileB: ''};
+            clearCompareChat();
+        }
+
+        async function askCompareFollowup() {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+
+            const selectedApi = apiConfigs.find(c => c.selected);
+            if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
+                error.textContent = '❌ 请完整填写选中的 API 配置';
+                error.style.display = 'block';
+                addLog('对比追问失败', 'API配置不完整');
+                return;
+            }
+
+            const input = document.getElementById('compareChatInput');
+            const chatBtn = document.getElementById('compareChatBtn');
+            const question = input.value.trim();
+            const compareResult = getCompareResultText().trim();
+
+            if (!compareResult || compareResult === '等待对比...') {
+                error.textContent = '❌ 请先完成一次对比分析';
+                error.style.display = 'block';
+                addLog('对比追问失败', '缺少对比结果');
+                return;
+            }
+
+            if (!question) {
+                error.textContent = '❌ 请输入追问内容';
+                error.style.display = 'block';
+                return;
+            }
+
+            compareChatHistory.push({role: 'user', content: question});
+            const assistantMessage = {role: 'assistant', content: '正在分析...'};
+            compareChatHistory.push(assistantMessage);
+            input.value = '';
+            chatBtn.disabled = true;
+            renderCompareChat();
+
+            addLog('开始对比追问', `模型: ${selectedApi.model}`);
+
+            try {
+                const historyForRequest = compareChatHistory.slice(0, -1).map(item => ({
+                    role: item.role,
+                    content: item.content
+                }));
+
+                const response = await fetch('/api/compare-chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiUrl: selectedApi.url,
+                        apiKey: selectedApi.key,
+                        model: selectedApi.model,
+                        compareResult,
+                        question,
+                        fileA: compareContext.fileA || document.getElementById('fileA').value.trim(),
+                        fileB: compareContext.fileB || document.getElementById('fileB').value.trim(),
+                        history: historyForRequest
+                    })
+                });
+
+                let fullText = '';
+                await readEventStream(response, text => {
+                    fullText += text;
+                    assistantMessage.content = fullText;
+                    renderCompareChat();
+                });
+
+                assistantMessage.content = fullText || '未返回内容。';
+                renderCompareChat();
+                addLog('对比追问完成', `输出字符数: ${fullText.length}`);
+            } catch (e) {
+                assistantMessage.content = `❌ 追问失败: ${e.message}`;
+                renderCompareChat();
+                error.textContent = `❌ 追问失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('对比追问异常', e.message);
+            } finally {
+                chatBtn.disabled = false;
+            }
+        }
+
         async function compareFiles() {
             const error = document.getElementById('error');
             error.style.display = 'none';
@@ -2438,7 +3596,8 @@
             const compareBtn = document.getElementById('compareBtn');
             const resultEl = document.getElementById('compareResult');
             compareBtn.disabled = true;
-            resultEl.textContent = '正在对比分析中...\n\n';
+                compareContext = {compareResult: '', fileA, fileB};
+                updateMarkdownElement(resultEl, '', '正在对比分析中...');
 
             addLog('开始AI对比', `模型: ${selectedApi.model}`);
 
@@ -2455,35 +3614,20 @@
                     })
                 });
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
                 let fullText = '';
+                await readEventStream(response, text => {
+                    fullText += text;
+                    updateMarkdownElement(resultEl, fullText);
+                });
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const data = JSON.parse(line.slice(6));
-                            if (data.error) {
-                                throw new Error(data.error);
-                            } else if (data.text) {
-                                fullText += data.text;
-                                resultEl.textContent = fullText;
-                                resultEl.scrollTop = resultEl.scrollHeight;
-                            }
-                        }
-                    }
-                }
-
+                compareContext.compareResult = fullText;
+                updateMarkdownElement(resultEl, fullText || '未返回对比结果。');
+                clearCompareChat();
                 addLog('AI对比完成', `输出字符数: ${fullText.length}`);
             } catch (e) {
                 error.textContent = `❌ 对比失败: ${e.message}`;
                 error.style.display = 'block';
+                compareContext.compareResult = '';
                 addLog('AI对比异常', e.message);
             } finally {
                 compareBtn.disabled = false;
@@ -2530,7 +3674,7 @@
             const resultContainer = document.getElementById(`compare-result-${pairId}`);
             const resultEl = document.getElementById(`compare-output-${pairId}`);
             resultContainer.style.display = 'block';
-            resultEl.textContent = '正在对比分析中...\n\n';
+            updateMarkdownElement(resultEl, '', '正在对比分析中...');
 
             addLog(`单个对比 #${pairId + 1}`, `模型: ${selectedApi.model}`);
 
@@ -2547,31 +3691,13 @@
                     })
                 });
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
                 let fullText = '';
+                await readEventStream(response, text => {
+                    fullText += text;
+                    updateMarkdownElement(resultEl, fullText);
+                });
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const data = JSON.parse(line.slice(6));
-                            if (data.error) {
-                                throw new Error(data.error);
-                            } else if (data.text) {
-                                fullText += data.text;
-                                resultEl.textContent = fullText;
-                                resultEl.scrollTop = resultEl.scrollHeight;
-                            }
-                        }
-                    }
-                }
-
+                updateMarkdownElement(resultEl, fullText || '未返回对比结果。');
                 addLog(`单个对比完成 #${pairId + 1}`, `输出字符数: ${fullText.length}`);
             } catch (e) {
                 error.textContent = `❌ 对比失败: ${e.message}`;
@@ -2626,10 +3752,14 @@
             renderLogs();
             updateGenerationModeControls();
 
-            const isMinimized = localStorage.getItem('logMinimized') === 'true';
+            const savedLogMinimized = localStorage.getItem('logMinimized');
+            const isMinimized = savedLogMinimized === null ? true : savedLogMinimized === 'true';
             if (isMinimized) {
                 document.getElementById('logPanel').classList.add('minimized');
                 document.querySelector('.log-header-buttons button').textContent = '+';
+            } else {
+                document.getElementById('logPanel').classList.remove('minimized');
+                document.querySelector('.log-header-buttons button').textContent = '−';
             }
 
             // Initialize theme system

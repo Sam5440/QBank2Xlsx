@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import os
 import time
 import json
 from utils import get_or_create_key
-from ai_service import generate_questions_stream, generate_questions_batch, extract_directory, generate_filename, compare_files_stream
+from ai_service import generate_questions_stream, generate_questions_batch, extract_directory, generate_filename, compare_files_stream, compare_chat_stream
 from excel_service import export_to_excel
 from logger import log_api_call
 from header_utils import get_question_type
@@ -110,6 +110,17 @@ class CompareRequest(BaseModel):
     model: str
     fileA: str
     fileB: str
+
+
+class CompareChatRequest(BaseModel):
+    apiUrl: str
+    apiKey: str
+    model: str
+    compareResult: str
+    question: str
+    fileA: str = ""
+    fileB: str = ""
+    history: list = Field(default_factory=list)
 
 
 async def handle_ai_request(ai_func, req: AIRequest, result_key: str, error_msg: str):
@@ -244,6 +255,27 @@ async def compare_files(req: CompareRequest):
     async def generate():
         try:
             async for chunk in compare_files_stream(req.apiUrl, req.apiKey, req.model, req.fileA, req.fileB):
+                yield chunk
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@app.post("/api/compare-chat")
+async def compare_chat(req: CompareChatRequest):
+    async def generate():
+        try:
+            async for chunk in compare_chat_stream(
+                req.apiUrl,
+                req.apiKey,
+                req.model,
+                req.compareResult,
+                req.question,
+                req.fileA,
+                req.fileB,
+                req.history
+            ):
                 yield chunk
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"

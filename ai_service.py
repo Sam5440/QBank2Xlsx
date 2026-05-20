@@ -196,3 +196,56 @@ async def compare_files_stream(api_url, api_key, model, file_a, file_b):
                                 yield f"data: {json.dumps({'text': delta['content']}, ensure_ascii=False)}\n\n"
                     except:
                         pass
+
+
+async def compare_chat_stream(api_url, api_key, model, compare_result, question, file_a='', file_b='', history=None):
+    """基于对比结果进行流式追问"""
+    model = model.strip()
+    history = history or []
+    system_prompt = (
+        "你是一个专业的题库审核助手。请基于已有 AB 对比结果、生成题目和原始需求回答用户追问。"
+        "回答必须使用 Markdown，结论明确，必要时给出可执行的修改建议。"
+        "如果上下文不足，请直接说明缺少哪些信息，不要编造。"
+    )
+    context_prompt = f"""以下是当前审核上下文：
+
+## 已有对比结果
+{compare_result or '暂无'}
+
+## 文件 A（生成的题目）
+{file_a or '暂无'}
+
+## 文件 B（原始需求）
+{file_b or '暂无'}
+
+请回答用户追问：{question}
+"""
+
+    messages = [{'role': 'system', 'content': system_prompt}]
+    for item in history[-8:]:
+        role = item.get('role')
+        content = item.get('content')
+        if role in ('user', 'assistant') and content:
+            messages.append({'role': role, 'content': content})
+    messages.append({'role': 'user', 'content': context_prompt})
+
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        async with client.stream(
+            'POST',
+            f"{api_url}/chat/completions",
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json={'model': model, 'messages': messages, 'stream': True}
+        ) as response:
+            async for line in response.aiter_lines():
+                if line.startswith('data: '):
+                    data = line[6:]
+                    if data.strip() == '[DONE]':
+                        break
+                    try:
+                        chunk = json.loads(data)
+                        if 'choices' in chunk and len(chunk['choices']) > 0:
+                            delta = chunk['choices'][0].get('delta', {})
+                            if 'content' in delta:
+                                yield f"data: {json.dumps({'text': delta['content']}, ensure_ascii=False)}\n\n"
+                    except:
+                        pass
