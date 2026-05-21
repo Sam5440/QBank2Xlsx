@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 题库生成器 - QBank2Xlsx</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
@@ -252,9 +253,19 @@
             flex-direction: column;
             gap: 16px;
         }
+        .api-config-actions,
+        .api-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .api-config-actions {
+            margin-top: 12px;
+        }
         .api-row {
             display: grid;
-            grid-template-columns: 40px 150px 1fr 1fr 150px 90px;
+            grid-template-columns: 40px 150px 1fr 1fr 150px minmax(170px, auto);
             gap: 12px;
             align-items: center;
             padding: 18px;
@@ -276,6 +287,9 @@
         .api-row input[type="text"],
         .api-row input[type="password"] {
             margin: 0;
+        }
+        .api-actions {
+            justify-content: flex-end;
         }
 
         /* Buttons */
@@ -578,7 +592,7 @@
             box-shadow: none;
         }
 
-        /* Theme Switcher Styles */
+        /* Legacy theme styles are unused after locking the app to the default theme */
         .theme-switcher {
             position: fixed;
             bottom: 24px;
@@ -1288,6 +1302,11 @@
             justify-content: center;
         }
 
+        .api-actions {
+            grid-column: 2 / -1;
+            justify-content: flex-start;
+        }
+
         button {
             min-height: 38px;
             padding: 9px 14px;
@@ -1972,6 +1991,11 @@
         body.theme-shadcn .api-row button {
             grid-column: 2 / -1;
             justify-content: center;
+        }
+
+        body.theme-shadcn .api-actions {
+            grid-column: 2 / -1;
+            justify-content: flex-start;
         }
 
         body.theme-shadcn .type-picker-head {
@@ -2697,10 +2721,21 @@
                 API 配置管理 <span style="color: var(--text-secondary); font-size: 14px; font-weight: normal;">(API URL 需要带 /v1，例如: https://api.openai.com/v1)</span>
             </div>
             <div class="api-config" id="apiConfigs"></div>
-            <button class="small" onclick="addApiConfig()" style="margin-top: 10px;">
-                <i data-lucide="plus"></i>
-                添加 API 配置
-            </button>
+            <div class="api-config-actions">
+                <button class="small" onclick="addApiConfig()">
+                    <i data-lucide="plus"></i>
+                    添加 API 配置
+                </button>
+                <button class="small" onclick="exportApiConfigs()">
+                    <i data-lucide="download"></i>
+                    导出全部 API
+                </button>
+                <button class="small" onclick="importApiConfigs()">
+                    <i data-lucide="upload"></i>
+                    导入全部 API
+                </button>
+            </div>
+            <input type="file" id="apiImportFile" accept=".json,application/json" style="display: none;" onchange="handleApiConfigImport(event)">
         </div>
 
         <div class="section filename-section">
@@ -2890,24 +2925,11 @@
         </div>
     </div>
 
-    <!-- Theme Switcher -->
-    <div class="theme-switcher">
-        <button class="theme-toggle-btn" onclick="toggleThemePanel()" aria-label="切换主题">
-            <i data-lucide="palette"></i>
-        </button>
-        <div class="theme-panel" id="themePanel">
-            <div class="theme-panel-header">
-                <i data-lucide="palette"></i>
-                选择主题风格
-            </div>
-            <div class="theme-grid" id="themeGrid"></div>
-        </div>
-    </div>
-
     <script>
         let selectedTypes = [];
         let generatedJSON = '';
         let encryptionKey = '';
+        let transportEncryptor = null;
         let apiConfigs = [];
         let inputPairs = [{id: 0, text: ''}];
         let outputPairs = [{id: 0, editable: '', full: ''}];
@@ -3210,12 +3232,9 @@
                 const response = await fetch('/api/extract-directory', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        apiUrl: selectedApi.url,
-                        apiKey: selectedApi.key,
-                        model: selectedApi.model,
+                    body: JSON.stringify(await buildApiRequestPayload(selectedApi, {
                         content: allInputs
-                    })
+                    }))
                 });
 
                 const data = await response.json();
@@ -3259,12 +3278,9 @@
                 const response = await fetch('/api/generate-filename', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        apiUrl: selectedApi.url,
-                        apiKey: selectedApi.key,
-                        model: selectedApi.model,
+                    body: JSON.stringify(await buildApiRequestPayload(selectedApi, {
                         content: allInputs
-                    })
+                    }))
                 });
 
                 const data = await response.json();
@@ -3287,6 +3303,33 @@
             const response = await fetch('/api/encryption-key');
             const data = await response.json();
             encryptionKey = data.key;
+        }
+
+        async function loadTransportPublicKey() {
+            const response = await fetch('/api/transport-public-key');
+            const data = await response.json();
+            transportEncryptor = new JSEncrypt();
+            transportEncryptor.setPublicKey(data.publicKey);
+        }
+
+        function encryptTransportValue(value) {
+            if (!transportEncryptor) {
+                throw new Error('API 传输加密未初始化');
+            }
+            const encrypted = transportEncryptor.encrypt(String(value ?? ''));
+            if (!encrypted) {
+                throw new Error('API 传输加密失败');
+            }
+            return encrypted;
+        }
+
+        async function buildApiRequestPayload(apiConfig, extra = {}) {
+            return {
+                apiUrl: encryptTransportValue(apiConfig.url),
+                apiKey: encryptTransportValue(apiConfig.key),
+                model: apiConfig.model,
+                ...extra
+            };
         }
 
         function encrypt(text) {
@@ -3314,8 +3357,35 @@
             if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
         }
 
+        function createApiConfigId() {
+            return (window.crypto?.randomUUID?.() || `api_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+        }
+
+        function normalizeApiConfig(config = {}) {
+            return {
+                id: config.id || createApiConfigId(),
+                name: String(config.name || '新配置'),
+                url: String(config.url || ''),
+                key: String(config.key || ''),
+                model: String(config.model || ''),
+                selected: Boolean(config.selected)
+            };
+        }
+
+        function ensureApiSelection() {
+            if (apiConfigs.length > 0 && !apiConfigs.some(config => config.selected)) {
+                apiConfigs[0].selected = true;
+            }
+        }
+
+        function apiConfigFingerprint(config) {
+            return [config.name, config.url, config.model]
+                .map(value => String(value || '').trim().toLowerCase())
+                .join('|');
+        }
+
         function saveConfigs() {
-            const encrypted = encrypt(JSON.stringify(apiConfigs));
+            const encrypted = encrypt(JSON.stringify(apiConfigs.map(normalizeApiConfig)));
             setCookie('apiConfigs', encrypted);
         }
 
@@ -3324,12 +3394,19 @@
             if (encrypted) {
                 const decrypted = decrypt(encrypted);
                 if (decrypted) {
-                    apiConfigs = JSON.parse(decrypted);
+                    try {
+                        apiConfigs = JSON.parse(decrypted);
+                    } catch (e) {
+                        apiConfigs = [];
+                    }
                 }
             }
-            if (apiConfigs.length === 0) {
+            if (!Array.isArray(apiConfigs) || apiConfigs.length === 0) {
                 apiConfigs = [{name: 'OpenAI', url: 'https://api.openai.com/v1', key: '', model: 'gpt-4', selected: true}];
             }
+            apiConfigs = apiConfigs.map(normalizeApiConfig);
+            ensureApiSelection();
+            saveConfigs();
             renderApiConfigs();
         }
 
@@ -3338,41 +3415,151 @@
             container.innerHTML = apiConfigs.map((config, idx) => `
                 <div class="api-row">
                     <input type="radio" name="selectedApi" ${config.selected ? 'checked' : ''} onchange="selectApi(${idx})">
-                    <input type="text" placeholder="名称" value="${config.name}" onchange="updateConfig(${idx}, 'name', this.value)">
-                    <input type="text" placeholder="API URL" value="${config.url}" onchange="updateConfig(${idx}, 'url', this.value)">
-                    <input type="password" placeholder="API Key" value="${config.key}" onchange="updateConfig(${idx}, 'key', this.value)">
-                    <input type="text" placeholder="Model" value="${config.model}" onchange="updateConfig(${idx}, 'model', this.value)">
-                    <button class="small danger" onclick="deleteConfig(${idx})">删除</button>
+                    <input type="text" placeholder="名称" value="${escapeHTML(config.name)}" onchange="updateConfig(${idx}, 'name', this.value)">
+                    <input type="text" placeholder="API URL" value="${escapeHTML(config.url)}" onchange="updateConfig(${idx}, 'url', this.value)">
+                    <input type="password" placeholder="API Key" value="${escapeHTML(config.key)}" onchange="updateConfig(${idx}, 'key', this.value)">
+                    <input type="text" placeholder="Model" value="${escapeHTML(config.model)}" onchange="updateConfig(${idx}, 'model', this.value)">
+                    <div class="api-actions">
+                        <button class="small" onclick="testApiConfig(${idx})">
+                            <i data-lucide="plug-zap"></i>
+                            测试
+                        </button>
+                        <button class="small danger" onclick="deleteConfig(${idx})">删除</button>
+                    </div>
                 </div>
             `).join('');
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
         }
 
         function addApiConfig() {
-            apiConfigs.push({name: '新配置', url: '', key: '', model: '', selected: false});
+            apiConfigs.push(normalizeApiConfig({name: '新配置'}));
+            ensureApiSelection();
+            saveConfigs();
             renderApiConfigs();
             addLog('添加API配置', '新增了一个API配置');
         }
 
         function deleteConfig(idx) {
-            const configName = apiConfigs[idx].name;
+            const configName = apiConfigs[idx]?.name || '';
             apiConfigs.splice(idx, 1);
             if (apiConfigs.length === 0) {
-                addApiConfig();
+                apiConfigs.push(normalizeApiConfig({name: '新配置', selected: true}));
             }
+            ensureApiSelection();
             saveConfigs();
             renderApiConfigs();
             addLog('删除API配置', `删除了配置: ${configName}`);
         }
 
         function selectApi(idx) {
-            apiConfigs.forEach((c, i) => c.selected = i === idx);
+            apiConfigs.forEach((config, i) => config.selected = i === idx);
             saveConfigs();
+            renderApiConfigs();
             addLog('切换API配置', `选择了配置: ${apiConfigs[idx].name}`);
         }
 
         function updateConfig(idx, field, value) {
             apiConfigs[idx][field] = value;
             saveConfigs();
+        }
+
+        function exportApiConfigs() {
+            const payload = {
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                apiConfigs: apiConfigs.map(config => ({...normalizeApiConfig(config)}))
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `api_configs_${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            addLog('导出API配置', `导出 ${payload.apiConfigs.length} 个配置`);
+        }
+
+        function importApiConfigs() {
+            document.getElementById('apiImportFile').click();
+        }
+
+        async function handleApiConfigImport(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            try {
+                const data = JSON.parse(await readFileAsText(file));
+                const imported = Array.isArray(data) ? data : (data.apiConfigs || data.configs || []);
+                if (!Array.isArray(imported)) {
+                    throw new Error('导入文件格式不正确');
+                }
+
+                const existingById = new Map(apiConfigs.map((config, idx) => [config.id, idx]));
+                const existingByFingerprint = new Map(apiConfigs.map((config, idx) => [apiConfigFingerprint(config), idx]));
+                let added = 0;
+                let updated = 0;
+
+                imported.map(normalizeApiConfig).forEach(config => {
+                    const fingerprint = apiConfigFingerprint(config);
+                    const matchIndex = existingById.has(config.id)
+                        ? existingById.get(config.id)
+                        : existingByFingerprint.get(fingerprint);
+
+                    if (matchIndex === undefined) {
+                        config.selected = false;
+                        apiConfigs.push(config);
+                        added += 1;
+                    } else {
+                        apiConfigs[matchIndex] = {...apiConfigs[matchIndex], ...config, selected: apiConfigs[matchIndex].selected};
+                        updated += 1;
+                    }
+                });
+
+                ensureApiSelection();
+                saveConfigs();
+                renderApiConfigs();
+                addLog('导入API配置', `新增 ${added} 个，更新 ${updated} 个`);
+            } catch (e) {
+                const error = document.getElementById('error');
+                error.textContent = `API配置导入失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('导入API配置失败', e.message);
+            } finally {
+                event.target.value = '';
+            }
+        }
+
+        async function testApiConfig(idx) {
+            const config = apiConfigs[idx];
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+
+            if (!config || !config.url || !config.key || !config.model) {
+                error.textContent = '请完整填写要测试的 API URL、API Key 和 Model';
+                error.style.display = 'block';
+                return;
+            }
+
+            addLog('测试API配置', `开始测试: ${config.name}`);
+            try {
+                const response = await fetch('/api/test-api', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(await buildApiRequestPayload(config))
+                });
+                const data = await response.json();
+                if (!data.ok) {
+                    throw new Error(data.error || '测试失败');
+                }
+                error.textContent = `API 测试成功: ${config.name}`;
+                error.style.display = 'block';
+                addLog('API测试成功', `${config.name}: ${data.message || 'OK'}`);
+            } catch (e) {
+                error.textContent = `API 测试失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('API测试失败', `${config.name}: ${e.message}`);
+            }
         }
 
         function updateCharCount(id) {
@@ -3861,16 +4048,13 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 signal,
-                body: JSON.stringify({
-                    apiUrl: selectedApi.url,
-                    apiKey: selectedApi.key,
-                    model: selectedApi.model,
+                body: JSON.stringify(await buildApiRequestPayload(selectedApi, {
                     questionTypes: selectedTypes,
                     items,
                     systemPrompt: document.getElementById('systemPrompt').value,
                     directory: document.getElementById('directory').value,
                     concurrency
-                })
+                }))
             });
 
             if (!response.ok) {
@@ -4000,15 +4184,12 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     signal: controller.signal,
-                    body: JSON.stringify({
-                        apiUrl: selectedApi.url,
-                        apiKey: selectedApi.key,
-                        model: selectedApi.model,
+                    body: JSON.stringify(await buildApiRequestPayload(selectedApi, {
                         questionTypes: selectedTypes,
                         userInput,
                         systemPrompt: systemPrompt,
                         directory: document.getElementById('directory').value
-                    })
+                    }))
                 });
 
                 if (!response.ok) {
@@ -4613,16 +4794,13 @@
                 const response = await fetch('/api/compare-chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        apiUrl: selectedApi.url,
-                        apiKey: selectedApi.key,
-                        model: selectedApi.model,
+                    body: JSON.stringify(await buildApiRequestPayload(selectedApi, {
                         compareResult,
                         question,
                         fileA: compareContext.fileA || document.getElementById('fileA').value.trim(),
                         fileB: compareContext.fileB || document.getElementById('fileB').value.trim(),
                         history: historyForRequest
-                    })
+                    }))
                 });
 
                 let fullText = '';
@@ -4680,13 +4858,10 @@
                 const response = await fetch('/api/compare', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        apiUrl: selectedApi.url,
-                        apiKey: selectedApi.key,
-                        model: selectedApi.model,
+                    body: JSON.stringify(await buildApiRequestPayload(selectedApi, {
                         fileA: fileA,
                         fileB: fileB
-                    })
+                    }))
                 });
 
                 let fullText = '';
@@ -4757,13 +4932,10 @@
                 const response = await fetch('/api/compare', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        apiUrl: selectedApi.url,
-                        apiKey: selectedApi.key,
-                        model: selectedApi.model,
+                    body: JSON.stringify(await buildApiRequestPayload(selectedApi, {
                         fileA: fileA,
                         fileB: inputText
-                    })
+                    }))
                 });
 
                 let fullText = '';
@@ -4819,6 +4991,7 @@
 
         window.onload = async () => {
             await loadEncryptionKey();
+            await loadTransportPublicKey();
             loadConfigs();
             renderInputPairs();
             renderOutputPairs();
@@ -4848,77 +5021,9 @@
             }
         };
 
-        // Theme System Functions
         function initializeThemeSystem() {
-            // Apply saved theme or default
-            const savedTheme = themeManager.getCurrentTheme();
-            themeManager.applyTheme(savedTheme, {persist: false});
-
-            // Render theme selector
-            renderThemeSelector();
-
-            // Close theme panel when clicking outside
-            document.addEventListener('click', (e) => {
-                const themePanel = document.getElementById('themePanel');
-                const themeSwitcher = document.querySelector('.theme-switcher');
-                if (!themeSwitcher.contains(e.target) && themePanel.classList.contains('active')) {
-                    themePanel.classList.remove('active');
-                }
-            });
+            themeManager.applyTheme('default', {persist: false});
         }
-
-        function renderThemeSelector() {
-            const themeGrid = document.getElementById('themeGrid');
-            const themes = themeManager.getThemeList();
-            const currentTheme = themeManager.getCurrentTheme();
-
-            themeGrid.innerHTML = themes.map(theme => `
-                <div class="theme-card ${theme.id === currentTheme ? 'active' : ''}"
-                     onclick="selectTheme('${theme.id}')"
-                     data-theme="${theme.id}">
-                    <div class="theme-card-header">
-                        <div class="theme-card-icon">
-                            <i data-lucide="${theme.icon}"></i>
-                        </div>
-                        <div class="theme-card-title">${theme.name}</div>
-                    </div>
-                    <div class="theme-card-description">${theme.description}</div>
-                    <div class="theme-card-preview">
-                        <div class="theme-color-dot" style="background: ${theme.colors.primary};"></div>
-                        <div class="theme-color-dot" style="background: ${theme.colors.secondary};"></div>
-                        <div class="theme-color-dot" style="background: ${theme.colors.cta};"></div>
-                        <div class="theme-color-dot" style="background: ${theme.colors.background};"></div>
-                    </div>
-                </div>
-            `).join('');
-
-            // Re-initialize Lucide icons for theme cards
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-        }
-
-        function toggleThemePanel() {
-            const themePanel = document.getElementById('themePanel');
-            themePanel.classList.toggle('active');
-        }
-
-        function selectTheme(themeId) {
-            themeManager.applyTheme(themeId);
-            renderThemeSelector();
-
-            // Re-initialize Lucide icons after theme change
-            setTimeout(() => {
-                if (typeof lucide !== 'undefined') {
-                    lucide.createIcons();
-                }
-            }, 100);
-        }
-
-        // Listen for theme changes
-        window.addEventListener('themeChanged', (e) => {
-            console.log('Theme changed to:', e.detail.theme);
-        });
     </script>
 </body>
 </html>

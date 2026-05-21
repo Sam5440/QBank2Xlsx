@@ -50,21 +50,25 @@ def extract_json_content(text):
     return text[start_index + len(json_start_marker):end_index].strip()
 
 
-async def call_ai_api(api_url, api_key, model, system_prompt, user_prompt, timeout=60.0):
+async def call_ai_api(api_url, api_key, model, system_prompt, user_prompt, timeout=60.0, extra_payload=None):
     """通用 AI API 调用函数"""
     model = model.strip()
     async with httpx.AsyncClient(timeout=timeout) as client:
+        payload = {
+            'model': model,
+            'messages': [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': user_prompt}
+            ],
+            'stream': False
+        }
+        if extra_payload:
+            payload.update(extra_payload)
+
         response = await client.post(
             f"{api_url}/chat/completions",
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-            json={
-                'model': model,
-                'messages': [
-                    {'role': 'system', 'content': system_prompt},
-                    {'role': 'user', 'content': user_prompt}
-                ],
-                'stream': False
-            }
+            json=payload
         )
         response.raise_for_status()
         data = response.json()
@@ -169,6 +173,19 @@ async def generate_filename(api_url, api_key, model, content):
     """使用 AI 生成文件名"""
     user_prompt = f'请根据以下内容生成一个合适的文件名：\n\n{content}\n\n请直接输出文件名，不要有其他说明文字，不要包含扩展名。'
     return await call_ai_api(api_url, api_key, model, FILENAME_GENERATION_PROMPT, user_prompt)
+
+
+async def test_api_connection(api_url, api_key, model):
+    """Test an OpenAI-compatible chat completions endpoint with a tiny request."""
+    return await call_ai_api(
+        api_url,
+        api_key,
+        model,
+        'You are a connectivity test endpoint.',
+        'Reply with OK.',
+        timeout=30.0,
+        extra_payload={'max_tokens': 2}
+    )
 
 
 async def compare_files_stream(api_url, api_key, model, file_a, file_b):

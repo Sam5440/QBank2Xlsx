@@ -6,8 +6,10 @@ from pydantic import BaseModel, Field
 import os
 import time
 import json
-from utils import get_or_create_key
-from ai_service import generate_questions_stream, generate_questions_batch, extract_directory, generate_filename, compare_files_stream, compare_chat_stream
+import base64
+from cryptography.hazmat.primitives.asymmetric import padding
+from utils import get_or_create_key, get_or_create_transport_private_key, get_transport_public_key_pem
+from ai_service import generate_questions_stream, generate_questions_batch, extract_directory, generate_filename, compare_files_stream, compare_chat_stream, test_api_connection
 from excel_service import export_to_excel
 from logger import log_api_call
 from header_utils import get_question_type
@@ -27,8 +29,11 @@ async def log_requests(request: Request, call_next):
             if body:
                 request_body = json.loads(body.decode())
                 # 隐藏敏感信息
-                if isinstance(request_body, dict) and 'apiKey' in request_body:
-                    request_body = {**request_body, 'apiKey': '***'}
+                if isinstance(request_body, dict):
+                    request_body = {**request_body}
+                    for field in ('apiKey', 'apiUrl'):
+                        if field in request_body:
+                            request_body[field] = '***'
         except:
             pass
 
@@ -65,6 +70,32 @@ async def log_requests(request: Request, call_next):
     return response
 
 ENCRYPTION_KEY = get_or_create_key()
+TRANSPORT_PRIVATE_KEY = get_or_create_transport_private_key()
+TRANSPORT_PUBLIC_KEY = get_transport_public_key_pem(TRANSPORT_PRIVATE_KEY)
+
+
+def decrypt_transport_value(value: str) -> str:
+    """Decrypt an RSA transport value; keep plaintext fallback for older clients."""
+    if not value:
+        return value
+    try:
+        cipher_bytes = base64.b64decode(value)
+        plain_bytes = TRANSPORT_PRIVATE_KEY.decrypt(cipher_bytes, padding.PKCS1v15())
+        return plain_bytes.decode('utf-8')
+    except Exception:
+        return value
+
+
+def resolve_api_credentials(req):
+    return decrypt_transport_value(req.apiUrl), decrypt_transport_value(req.apiKey)
+
+
+def mask_api_request(req):
+    data = req.dict()
+    for field in ('apiKey', 'apiUrl'):
+        if field in data:
+            data[field] = '***'
+    return data
 
 
 class GenerateRequest(BaseModel):
@@ -123,16 +154,23 @@ class CompareChatRequest(BaseModel):
     history: list = Field(default_factory=list)
 
 
+class TestApiRequest(BaseModel):
+    apiUrl: str
+    apiKey: str
+    model: str
+
+
 async def handle_ai_request(ai_func, req: AIRequest, result_key: str, error_msg: str):
     """通用 AI 请求处理函数"""
     try:
-        result = await ai_func(req.apiUrl, req.apiKey, req.model, req.content)
+        api_url, api_key = resolve_api_credentials(req)
+        result = await ai_func(api_url, api_key, req.model, req.content)
         # print(result)
         log_api_call(
             method="POST",
             path="/api/ai",
             status_code=200,
-            request_body=req.dict(),
+            request_body=mask_api_request(req),
             response_body=result,
             duration_ms=0
         )
@@ -163,6 +201,11 @@ async def theme_test():
 @app.get("/api/encryption-key")
 async def get_encryption_key():
     return {"key": ENCRYPTION_KEY}
+
+
+@app.get("/api/transport-public-key")
+async def get_transport_public_key():
+    return {"publicKey": TRANSPORT_PUBLIC_KEY, "algorithm": "RSA/PKCS1v15"}
 
 
 @app.get("/api/system-prompt")
@@ -198,7 +241,8 @@ async def get_question_types():
 async def generate_questions(req: GenerateRequest):
     async def generate():
         try:
-            async for chunk in generate_questions_stream(req.apiUrl, req.apiKey, req.model, req.questionTypes, req.userInput, req.systemPrompt, req.directory):
+            api_url, api_key = resolve_api_credentials(req)
+            async for chunk in generate_questions_stream(api_url, api_key, req.model, req.questionTypes, req.userInput, req.systemPrompt, req.directory):
                 yield chunk
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -209,9 +253,10 @@ async def generate_questions(req: GenerateRequest):
 @app.post("/api/generate-batch")
 async def generate_questions_batch_endpoint(req: GenerateBatchRequest):
     try:
+        api_url, api_key = resolve_api_credentials(req)
         results = await generate_questions_batch(
-            req.apiUrl,
-            req.apiKey,
+            api_url,
+            api_key,
             req.model,
             req.questionTypes,
             [item.dict() for item in req.items],
@@ -250,11 +295,22 @@ async def generate_filename_endpoint(req: AIRequest):
     return await handle_ai_request(generate_filename, req, "filename", "无法生成文件名")
 
 
+@app.post("/api/test-api")
+async def test_api_endpoint(req: TestApiRequest):
+    try:
+        api_url, api_key = resolve_api_credentials(req)
+        result = await test_api_connection(api_url, api_key, req.model)
+        return {"ok": True, "message": result or "OK"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @app.post("/api/compare")
 async def compare_files(req: CompareRequest):
     async def generate():
         try:
-            async for chunk in compare_files_stream(req.apiUrl, req.apiKey, req.model, req.fileA, req.fileB):
+            api_url, api_key = resolve_api_credentials(req)
+            async for chunk in compare_files_stream(api_url, api_key, req.model, req.fileA, req.fileB):
                 yield chunk
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -266,9 +322,10 @@ async def compare_files(req: CompareRequest):
 async def compare_chat(req: CompareChatRequest):
     async def generate():
         try:
+            api_url, api_key = resolve_api_credentials(req)
             async for chunk in compare_chat_stream(
-                req.apiUrl,
-                req.apiKey,
+                api_url,
+                api_key,
                 req.model,
                 req.compareResult,
                 req.question,
