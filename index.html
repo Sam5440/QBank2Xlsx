@@ -1613,6 +1613,1026 @@
             }
         }
 
+        /* Shadcn default UI */
+        body.theme-shadcn {
+            --card: var(--surface);
+            --card-foreground: var(--text-primary);
+            --popover: var(--surface);
+            --accent: var(--muted);
+            --accent-foreground: var(--text-primary);
+            --destructive: var(--error);
+            --control-height: 40px;
+            --sidebar-width: 428px;
+            padding: 0;
+            background: var(--background);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            line-height: 1.5;
+        }
+
+        body.theme-shadcn .container {
+            width: 100%;
+            max-width: 1780px;
+            margin: 0 auto;
+            padding: 16px;
+            background: transparent;
+            border-radius: 0;
+            box-shadow: none;
+            backdrop-filter: none;
+        }
+
+        body.theme-shadcn .header {
+            position: sticky;
+            top: 0;
+            z-index: 60;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-height: 64px;
+            margin: 0 0 16px;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: rgba(255, 255, 255, 0.92);
+            box-shadow: var(--shadow-sm);
+            backdrop-filter: blur(16px);
+        }
+
+        body.theme-shadcn .header-icon {
+            width: 36px;
+            height: 36px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            color: var(--text-primary);
+            box-shadow: none;
+        }
+
+        body.theme-shadcn .header-icon svg {
+            width: 20px;
+            height: 20px;
+            color: var(--text-primary);
+            stroke-width: 2;
+        }
+
+        body.theme-shadcn h1 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 20px;
+            font-weight: 650;
+            letter-spacing: 0;
+            line-height: 1.25;
+        }
+
+        body.theme-shadcn .workspace-grid {
+            display: grid;
+            grid-template-columns: minmax(360px, var(--sidebar-width)) minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+        }
+
+        body.theme-shadcn .workspace-column {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-width: 0;
+        }
+
+        body.theme-shadcn .setup-column {
+            position: sticky;
+            top: 80px;
+            max-height: calc(100vh - 96px);
+            overflow: auto;
+            padding-right: 3px;
+        }
+
+        body.theme-shadcn .setup-column > .section:last-child {
+            margin-top: auto;
+        }
+
+        body.theme-shadcn .setup-column::-webkit-scrollbar,
+        body.theme-shadcn .compare-markdown::-webkit-scrollbar,
+        body.theme-shadcn .compare-chat-thread::-webkit-scrollbar,
+        body.theme-shadcn .output::-webkit-scrollbar {
+            width: 9px;
+            height: 9px;
+        }
+
+        body.theme-shadcn .setup-column::-webkit-scrollbar-thumb,
+        body.theme-shadcn .compare-markdown::-webkit-scrollbar-thumb,
+        body.theme-shadcn .compare-chat-thread::-webkit-scrollbar-thumb,
+        body.theme-shadcn .output::-webkit-scrollbar-thumb {
+            border: 2px solid transparent;
+            border-radius: 999px;
+            background: #D4D4D8;
+            background-clip: padding-box;
+        }
+
+        body.theme-shadcn .section,
+        body.theme-shadcn .actions,
+        body.theme-shadcn .input-pair,
+        body.theme-shadcn .output-pair,
+        body.theme-shadcn .compare-chat-panel,
+        body.theme-shadcn .modal-content {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+        }
+
+        body.theme-shadcn .section {
+            margin: 0;
+            padding: 16px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        body.theme-shadcn .section:hover {
+            border-color: #D4D4D8;
+            box-shadow: var(--shadow-sm);
+            transform: none;
+        }
+
+        body.theme-shadcn .section-title,
+        body.theme-shadcn .modal-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 12px;
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 14px;
+            font-weight: 650;
+            letter-spacing: 0;
+            line-height: 1.35;
+        }
+
+        body.theme-shadcn .section-title svg,
+        body.theme-shadcn .field-label svg {
+            width: 16px;
+            height: 16px;
+            color: var(--text-secondary);
+            stroke-width: 2;
+        }
+
+        body.theme-shadcn .field-label {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 7px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        body.theme-shadcn input,
+        body.theme-shadcn textarea,
+        body.theme-shadcn select {
+            min-height: var(--control-height);
+            padding: 9px 11px;
+            border: 1px solid var(--input);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            color: var(--text-primary);
+            box-shadow: none;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+        }
+
+        body.theme-shadcn textarea {
+            min-height: 132px;
+            resize: vertical;
+            font-family: 'SF Mono', 'Cascadia Mono', 'Consolas', monospace;
+            line-height: 1.65;
+        }
+
+        body.theme-shadcn #systemPrompt {
+            min-height: 300px !important;
+            font-family: 'SF Mono', 'Cascadia Mono', 'Consolas', monospace !important;
+        }
+
+        body.theme-shadcn #fileA,
+        body.theme-shadcn #fileB {
+            min-height: 220px !important;
+            font-family: 'SF Mono', 'Cascadia Mono', 'Consolas', monospace !important;
+        }
+
+        body.theme-shadcn .generation-section > div,
+        body.theme-shadcn .directory-section > div,
+        body.theme-shadcn .system-prompt-section > div,
+        body.theme-shadcn .compare-section > div[style*="display: flex"] {
+            flex-wrap: wrap;
+            gap: 10px !important;
+        }
+
+        body.theme-shadcn input:hover,
+        body.theme-shadcn textarea:hover,
+        body.theme-shadcn select:hover {
+            border-color: #D4D4D8;
+        }
+
+        body.theme-shadcn input:focus,
+        body.theme-shadcn textarea:focus,
+        body.theme-shadcn select:focus {
+            border-color: var(--ring);
+            box-shadow: 0 0 0 2px rgba(24, 24, 27, 0.12);
+            outline: none;
+        }
+
+        body.theme-shadcn input[type="checkbox"],
+        body.theme-shadcn input[type="radio"] {
+            width: 18px;
+            height: 18px;
+            min-height: 18px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        body.theme-shadcn button {
+            min-height: var(--control-height);
+            padding: 9px 14px;
+            border: 1px solid var(--primary);
+            border-radius: var(--radius-md);
+            background: var(--primary);
+            color: var(--primary-foreground);
+            box-shadow: none;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.2;
+            letter-spacing: 0;
+            white-space: nowrap;
+            transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        body.theme-shadcn button:hover {
+            background: #27272A;
+            border-color: #27272A;
+            box-shadow: none;
+            transform: none;
+        }
+
+        body.theme-shadcn button:active {
+            transform: none;
+        }
+
+        body.theme-shadcn button svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        body.theme-shadcn button.small:not(.danger),
+        body.theme-shadcn .type-picker-actions button,
+        body.theme-shadcn .action-btns button,
+        body.theme-shadcn .input-actions button:not(.danger),
+        body.theme-shadcn .output-actions button:not(.danger),
+        body.theme-shadcn .compare-chat-header button,
+        body.theme-shadcn .api-row button,
+        body.theme-shadcn .close-btn,
+        body.theme-shadcn .btn-clear {
+            background: var(--surface) !important;
+            border-color: var(--border) !important;
+            color: var(--text-primary) !important;
+        }
+
+        body.theme-shadcn button.small:not(.danger):hover,
+        body.theme-shadcn .type-picker-actions button:hover,
+        body.theme-shadcn .action-btns button:hover,
+        body.theme-shadcn .input-actions button:not(.danger):hover,
+        body.theme-shadcn .output-actions button:not(.danger):hover,
+        body.theme-shadcn .compare-chat-header button:hover,
+        body.theme-shadcn .api-row button:hover,
+        body.theme-shadcn .close-btn:hover,
+        body.theme-shadcn .btn-clear:hover {
+            background: var(--muted) !important;
+            border-color: #D4D4D8 !important;
+            color: var(--text-primary) !important;
+        }
+
+        body.theme-shadcn button.danger {
+            background: var(--destructive) !important;
+            border-color: var(--destructive) !important;
+            color: #FFFFFF !important;
+        }
+
+        body.theme-shadcn button.danger:hover {
+            background: #B91C1C !important;
+            border-color: #B91C1C !important;
+        }
+
+        body.theme-shadcn button:disabled,
+        body.theme-shadcn button.danger:disabled {
+            background: var(--muted) !important;
+            border-color: var(--border) !important;
+            color: #A1A1AA !important;
+            cursor: not-allowed;
+            opacity: 1;
+        }
+
+        body.theme-shadcn .api-config {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        body.theme-shadcn .api-row {
+            display: grid;
+            grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1fr);
+            gap: 8px;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            box-shadow: none;
+        }
+
+        body.theme-shadcn .api-row:hover {
+            border-color: #D4D4D8;
+            box-shadow: none;
+        }
+
+        body.theme-shadcn .api-row input[type="radio"] {
+            grid-row: 1 / span 3;
+            align-self: center;
+        }
+
+        body.theme-shadcn .api-row input[placeholder="名称"],
+        body.theme-shadcn .api-row input[type="password"] {
+            grid-column: 2;
+        }
+
+        body.theme-shadcn .api-row input[placeholder="API URL"],
+        body.theme-shadcn .api-row input[placeholder="Model"] {
+            grid-column: 3;
+        }
+
+        body.theme-shadcn .api-row button {
+            grid-column: 2 / -1;
+            justify-content: center;
+        }
+
+        body.theme-shadcn .type-picker-head {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 12px;
+            align-items: start;
+            margin-bottom: 12px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: var(--muted);
+        }
+
+        body.theme-shadcn .type-picker-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 650;
+            letter-spacing: 0;
+            text-transform: none;
+        }
+
+        body.theme-shadcn .type-picker-kicker svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        body.theme-shadcn .type-count-pill,
+        body.theme-shadcn .type-chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            padding: 2px 8px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        body.theme-shadcn .type-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 4px;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.45;
+        }
+
+        body.theme-shadcn .type-summary-placeholder {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        body.theme-shadcn .type-picker-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+
+        body.theme-shadcn .type-picker-actions button {
+            min-height: 36px;
+            padding: 8px 10px;
+        }
+
+        body.theme-shadcn .question-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+            gap: 10px;
+        }
+
+        body.theme-shadcn .type-item {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 116px;
+            padding: 11px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            box-shadow: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+        }
+
+        body.theme-shadcn .type-item:hover {
+            border-color: #C7C7CC;
+            box-shadow: 0 1px 3px rgba(24, 24, 27, 0.08);
+            transform: none;
+        }
+
+        body.theme-shadcn .type-item.active {
+            border-color: var(--primary);
+            background: #FAFAFA;
+            box-shadow: inset 0 0 0 1px var(--primary);
+        }
+
+        body.theme-shadcn .type-item.active::after {
+            content: "已选";
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 2px 7px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        body.theme-shadcn .type-card-main {
+            display: grid;
+            grid-template-columns: 28px minmax(0, 1fr);
+            gap: 9px;
+            align-items: start;
+            width: 100%;
+            min-height: 58px;
+            padding: 0;
+            border: 0;
+            background: transparent !important;
+            color: var(--text-primary);
+            box-shadow: none;
+            text-align: left;
+            white-space: normal;
+        }
+
+        body.theme-shadcn .type-card-main:hover {
+            background: transparent !important;
+            border-color: transparent;
+            box-shadow: none;
+        }
+
+        body.theme-shadcn .type-check {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--surface);
+            color: transparent;
+            transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        }
+
+        body.theme-shadcn .type-check svg {
+            width: 15px;
+            height: 15px;
+        }
+
+        body.theme-shadcn .type-item.active .type-check {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: var(--primary-foreground);
+        }
+
+        body.theme-shadcn .type-name {
+            display: block;
+            padding-right: 38px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 650;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+
+        body.theme-shadcn .type-meta {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: 6px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        body.theme-shadcn .type-meta svg {
+            width: 13px;
+            height: 13px;
+            color: var(--text-secondary);
+        }
+
+        body.theme-shadcn .action-btns {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            border-left: 0;
+        }
+
+        body.theme-shadcn .action-btns button {
+            min-width: 0;
+            min-height: 34px;
+            justify-content: center;
+            padding: 7px 8px;
+            border-radius: var(--radius-md);
+            font-size: 12px;
+        }
+
+        body.theme-shadcn .action-btns button:first-child {
+            border-left: 1px solid var(--border);
+        }
+
+        body.theme-shadcn .notice-tip {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border: 1px solid #FECACA;
+            border-radius: var(--radius-md);
+            background: #FEF2F2;
+            color: #991B1B;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        body.theme-shadcn .input-pair,
+        body.theme-shadcn .output-pair {
+            margin-bottom: 12px;
+            padding: 12px;
+        }
+
+        body.theme-shadcn .input-header,
+        body.theme-shadcn .output-pair-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        body.theme-shadcn .char-count {
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        body.theme-shadcn .input-actions,
+        body.theme-shadcn .actions,
+        body.theme-shadcn .output-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        body.theme-shadcn .input-actions {
+            margin-top: 10px;
+        }
+
+        body.theme-shadcn .actions {
+            margin-top: 0;
+            padding: 12px;
+            justify-content: flex-end;
+        }
+
+        body.theme-shadcn .output-grid,
+        body.theme-shadcn .compare-files-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 12px;
+        }
+
+        body.theme-shadcn .output {
+            min-height: 210px;
+            max-height: 440px;
+            overflow: auto;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: #09090B;
+            color: #F4F4F5;
+            box-shadow: none;
+            font-family: 'SF Mono', 'Cascadia Mono', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.65;
+            white-space: pre-wrap;
+        }
+
+        body.theme-shadcn textarea.output {
+            background: var(--surface) !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border) !important;
+        }
+
+        body.theme-shadcn .output.invalid {
+            border-color: var(--error) !important;
+            background: #FEF2F2 !important;
+            color: #991B1B !important;
+            box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.10);
+        }
+
+        body.theme-shadcn .error,
+        body.theme-shadcn .validation-error {
+            padding: 10px 12px;
+            border: 1px solid #FECACA;
+            border-left: 3px solid var(--error);
+            border-radius: var(--radius-md);
+            background: #FEF2F2;
+            color: #991B1B;
+            font-size: 13px;
+        }
+
+        body.theme-shadcn .compare-markdown {
+            min-height: 260px;
+            max-height: 520px;
+            overflow: auto;
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            color: var(--text-primary);
+            font-size: 13px;
+            line-height: 1.72;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        body.theme-shadcn .compare-markdown h1,
+        body.theme-shadcn .compare-markdown h2,
+        body.theme-shadcn .compare-markdown h3,
+        body.theme-shadcn .compare-markdown h4 {
+            margin: 0 0 10px;
+            color: var(--text-primary);
+            font-weight: 650;
+            line-height: 1.3;
+        }
+
+        body.theme-shadcn .compare-markdown h1 { font-size: 20px; }
+        body.theme-shadcn .compare-markdown h2 { font-size: 17px; }
+        body.theme-shadcn .compare-markdown h3 { font-size: 15px; }
+        body.theme-shadcn .compare-markdown h4 { font-size: 14px; }
+
+        body.theme-shadcn .compare-markdown p,
+        body.theme-shadcn .compare-markdown ul,
+        body.theme-shadcn .compare-markdown ol,
+        body.theme-shadcn .compare-markdown blockquote,
+        body.theme-shadcn .compare-markdown pre,
+        body.theme-shadcn .compare-markdown table {
+            margin: 0 0 12px;
+        }
+
+        body.theme-shadcn .compare-markdown ul,
+        body.theme-shadcn .compare-markdown ol {
+            padding-left: 20px;
+        }
+
+        body.theme-shadcn .compare-markdown blockquote {
+            padding: 10px 12px;
+            border-left: 3px solid var(--primary);
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+            background: var(--muted);
+            color: var(--text-secondary);
+        }
+
+        body.theme-shadcn .compare-markdown code {
+            padding: 2px 5px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--muted);
+            color: var(--text-primary);
+            font-size: 12px;
+        }
+
+        body.theme-shadcn .compare-markdown pre {
+            overflow: auto;
+            padding: 12px;
+            border-radius: var(--radius-md);
+            background: #09090B;
+            color: #F4F4F5;
+        }
+
+        body.theme-shadcn .compare-markdown pre code {
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: inherit;
+        }
+
+        body.theme-shadcn .compare-markdown table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        body.theme-shadcn .compare-markdown th,
+        body.theme-shadcn .compare-markdown td {
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        body.theme-shadcn .compare-markdown th {
+            background: var(--muted);
+            font-weight: 650;
+        }
+
+        body.theme-shadcn .compare-chat-panel {
+            margin-top: 12px;
+            padding: 12px;
+            background: var(--muted);
+        }
+
+        body.theme-shadcn .compare-chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        body.theme-shadcn .compare-chat-thread {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 132px;
+            max-height: 280px;
+            overflow: auto;
+            margin-bottom: 10px;
+            padding-right: 2px;
+        }
+
+        body.theme-shadcn .chat-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 110px;
+            padding: 12px;
+            border: 1px dashed #D4D4D8;
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        body.theme-shadcn .chat-bubble {
+            max-width: min(92%, 820px);
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            font-size: 13px;
+            line-height: 1.65;
+            word-break: break-word;
+        }
+
+        body.theme-shadcn .chat-bubble.user {
+            align-self: flex-end;
+            background: var(--primary);
+            border-color: var(--primary);
+            color: var(--primary-foreground);
+            white-space: pre-wrap;
+        }
+
+        body.theme-shadcn .chat-bubble.assistant {
+            align-self: flex-start;
+            background: var(--surface);
+            color: var(--text-primary);
+            white-space: normal;
+        }
+
+        body.theme-shadcn .chat-input-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        body.theme-shadcn .chat-input-row textarea {
+            min-height: 92px;
+        }
+
+        body.theme-shadcn .modal {
+            background: rgba(9, 9, 11, 0.58);
+        }
+
+        body.theme-shadcn .modal-content {
+            padding: 20px;
+        }
+
+        body.theme-shadcn .log-panel {
+            right: 76px;
+            bottom: 16px;
+            width: 360px;
+            height: 312px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            box-shadow: var(--shadow-lg);
+        }
+
+        body.theme-shadcn .log-panel.minimized {
+            width: auto;
+            min-width: 180px;
+            height: auto;
+        }
+
+        body.theme-shadcn .log-header {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            background: var(--surface);
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+
+        body.theme-shadcn .log-entry {
+            border-left-color: var(--primary);
+            background: var(--muted);
+            color: var(--text-primary);
+        }
+
+        body.theme-shadcn .theme-switcher {
+            right: 16px;
+            bottom: 16px;
+        }
+
+        body.theme-shadcn .theme-toggle-btn {
+            width: 44px;
+            height: 44px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: var(--surface) !important;
+            color: var(--text-primary) !important;
+            box-shadow: var(--shadow-md);
+        }
+
+        body.theme-shadcn .theme-toggle-btn:hover {
+            background: var(--muted) !important;
+            border-color: #D4D4D8 !important;
+            box-shadow: var(--shadow-md);
+            transform: none;
+        }
+
+        body.theme-shadcn .theme-panel {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            box-shadow: var(--shadow-lg);
+        }
+
+        body.theme-shadcn .theme-panel-header {
+            border-bottom: 1px solid var(--border);
+            color: var(--text-primary);
+            font-weight: 650;
+        }
+
+        body.theme-shadcn .theme-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            box-shadow: none;
+        }
+
+        body.theme-shadcn .theme-card:hover,
+        body.theme-shadcn .theme-card.active {
+            border-color: var(--primary);
+            box-shadow: none;
+        }
+
+        body.theme-shadcn .theme-card-icon {
+            border-radius: var(--radius-sm);
+            background: var(--muted);
+            color: var(--text-primary);
+        }
+
+        body.theme-shadcn .theme-color-dot {
+            border-radius: var(--radius-sm);
+        }
+
+        @media (max-width: 1180px) {
+            body.theme-shadcn .container {
+                padding: 12px;
+            }
+
+            body.theme-shadcn .workspace-grid {
+                grid-template-columns: 1fr;
+            }
+
+            body.theme-shadcn .setup-column {
+                position: static;
+                max-height: none;
+                overflow: visible;
+                padding-right: 0;
+            }
+
+            body.theme-shadcn .log-panel {
+                width: min(360px, calc(100vw - 24px));
+                right: 12px;
+                bottom: 68px;
+            }
+        }
+
+        @media (max-width: 760px) {
+            body.theme-shadcn .container {
+                padding: 10px;
+            }
+
+            body.theme-shadcn .header {
+                position: static;
+                min-height: 56px;
+                padding: 10px 12px;
+            }
+
+            body.theme-shadcn h1 {
+                font-size: 18px;
+            }
+
+            body.theme-shadcn .section {
+                padding: 12px;
+            }
+
+            body.theme-shadcn .type-picker-head,
+            body.theme-shadcn .compare-chat-header,
+            body.theme-shadcn .chat-input-row {
+                grid-template-columns: 1fr;
+                align-items: stretch;
+            }
+
+            body.theme-shadcn .type-picker-actions,
+            body.theme-shadcn .compare-chat-header {
+                justify-content: flex-start;
+            }
+
+            body.theme-shadcn .question-types,
+            body.theme-shadcn .output-grid,
+            body.theme-shadcn .compare-files-grid,
+            body.theme-shadcn .api-row {
+                grid-template-columns: 1fr;
+            }
+
+            body.theme-shadcn .api-row input[type="radio"],
+            body.theme-shadcn .api-row input[placeholder="名称"],
+            body.theme-shadcn .api-row input[type="password"],
+            body.theme-shadcn .api-row input[placeholder="API URL"],
+            body.theme-shadcn .api-row input[placeholder="Model"],
+            body.theme-shadcn .api-row button {
+                grid-column: 1 / -1;
+                grid-row: auto;
+            }
+
+            body.theme-shadcn .output-pair-header,
+            body.theme-shadcn .input-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            body.theme-shadcn .actions {
+                justify-content: flex-start;
+            }
+        }
+
         /* Reduced motion support */
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
@@ -1660,7 +2680,7 @@
 
         <div class="workspace-grid">
             <div class="workspace-column setup-column">
-        <div class="section">
+        <div class="section question-type-section">
             <div class="section-title">
                 <i data-lucide="list-checks"></i>
                 选择题型（可多选）
@@ -1671,7 +2691,7 @@
             </div>
         </div>
 
-        <div class="section">
+        <div class="section api-section">
             <div class="section-title">
                 <i data-lucide="settings"></i>
                 API 配置管理 <span style="color: var(--text-secondary); font-size: 14px; font-weight: normal;">(API URL 需要带 /v1，例如: https://api.openai.com/v1)</span>
@@ -1683,7 +2703,7 @@
             </button>
         </div>
 
-        <div class="section">
+        <div class="section filename-section">
             <div class="section-title">
                 <i data-lucide="file-output"></i>
                 输出文件名
@@ -1697,7 +2717,7 @@
             </div>
         </div>
 
-        <div class="section">
+        <div class="section directory-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <div class="section-title" style="margin: 0;">
                     <i data-lucide="folder-tree"></i>
@@ -1711,7 +2731,7 @@
             <textarea id="directory" placeholder="输入或提取目录结构..." style="min-height: 120px;"></textarea>
         </div>
 
-        <div class="section">
+        <div class="section generation-section">
             <div style="display: flex; align-items: center; gap: 20px;">
                 <button id="generateBtn" onclick="generateQuestions()">
                     <i data-lucide="rocket"></i>
@@ -1728,7 +2748,7 @@
             </div>
         </div>
 
-        <div class="section">
+        <div class="section system-prompt-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <div class="section-title" style="margin: 0;">
                     <i data-lucide="file-text"></i>
@@ -1744,7 +2764,7 @@
 
             </div>
             <div class="workspace-column output-column">
-        <div class="section">
+        <div class="section requirement-section">
             <div class="section-title">
                 <i data-lucide="edit-3"></i>
                 输入题目需求
@@ -1767,7 +2787,7 @@
             <input type="file" id="importFile" accept=".json,.txt,application/json,text/plain" multiple style="display: none;" onchange="handleImport(event)">
         </div>
 
-        <div class="section">
+        <div class="section result-section">
             <div class="section-title">
                 <i data-lucide="sparkles"></i>
                 AI 生成结果
@@ -1776,7 +2796,7 @@
             <div class="error" id="error" style="display: none;"></div>
         </div>
 
-        <div class="section">
+        <div class="section compare-section">
             <div class="section-title">
                 <i data-lucide="git-compare"></i>
                 AB 对比审核
@@ -2001,7 +3021,12 @@
                 // Display notice tip if exists
                 const noticeTipContainer = document.getElementById('noticeTipContainer');
                 if (noticeTip) {
-                    noticeTipContainer.innerHTML = `<div class="notice-tip">⚠️ ${noticeTip}</div>`;
+                    noticeTipContainer.innerHTML = `
+                        <div class="notice-tip">
+                            <i data-lucide="triangle-alert"></i>
+                            <span>${escapeHTML(noticeTip)}</span>
+                        </div>
+                    `;
                 } else {
                     noticeTipContainer.innerHTML = '';
                 }
@@ -2023,7 +3048,11 @@
                 container.innerHTML = `
                     <div class="type-picker-head">
                         <div>
-                            <div class="type-picker-kicker">QUESTION TYPES</div>
+                            <div class="type-picker-kicker">
+                                <i data-lucide="list-filter"></i>
+                                <span>题型选择</span>
+                                <span class="type-count-pill" id="typeCountPill">0 / ${types.length}</span>
+                            </div>
                             <div class="type-summary" id="typeSummary">尚未选择题型</div>
                         </div>
                         <div class="type-picker-actions">
@@ -2389,16 +3418,32 @@
 
         function updateTypeSummary() {
             const summary = document.getElementById('typeSummary');
+            const countPill = document.getElementById('typeCountPill');
             if (!summary) return;
-            summary.textContent = selectedTypes.length
-                ? `已选择 ${selectedTypes.length} 项：${selectedTypes.join('、')}`
-                : '尚未选择题型';
+            if (countPill) {
+                countPill.textContent = `${selectedTypes.length} / ${availableQuestionTypes.length || 0}`;
+            }
+            if (!selectedTypes.length) {
+                summary.innerHTML = '<span class="type-summary-placeholder">尚未选择，点击卡片即可多选</span>';
+                return;
+            }
+            const visibleTypes = selectedTypes.slice(0, 4);
+            const moreCount = selectedTypes.length - visibleTypes.length;
+            const chips = visibleTypes.map(type => `<span class="type-chip">${escapeHTML(type)}</span>`);
+            if (moreCount > 0) {
+                chips.push(`<span class="type-chip">+${moreCount}</span>`);
+            }
+            summary.innerHTML = chips.join('');
         }
 
         function setSelectedTypes(types) {
             selectedTypes = [...new Set(types.filter(Boolean))];
             document.querySelectorAll('.type-item').forEach(item => {
                 item.classList.toggle('active', selectedTypes.includes(item.dataset.type));
+                const typeBtn = item.querySelector('.type-card-main');
+                if (typeBtn) {
+                    typeBtn.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+                }
             });
             setCookie('questionTypes', encrypt(JSON.stringify(selectedTypes)));
             updateTypeSummary();
@@ -2482,11 +3527,20 @@
 
             if (regenBtn) {
                 regenBtn.disabled = batchGenerating && !generating;
-                regenBtn.textContent = batchGenerating && !generating ? '🔄 批量生成中' : (generating ? '🔄 打断并重新生成' : '🔄 重新生成');
+                regenBtn.innerHTML = `
+                    <i data-lucide="refresh-cw"></i>
+                    ${batchGenerating && !generating ? '批量生成中' : (generating ? '打断并重新生成' : '重新生成')}
+                `;
             }
             if (stopBtn) {
                 stopBtn.disabled = !generating || stopping;
-                stopBtn.textContent = stopping ? '⏹ 停止中' : '⏹ 停止';
+                stopBtn.innerHTML = `
+                    <i data-lucide="square"></i>
+                    ${stopping ? '停止中' : '停止'}
+                `;
+            }
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
             }
             updateGlobalGenerationControls();
         }
@@ -2609,11 +3663,20 @@
                     </div>
                     <textarea id="input-${pair.id}" oninput="updateCharCount(${pair.id})" placeholder="请输入题目需求">${escapeHTML(pair.text)}</textarea>
                     <div class="input-actions">
-                        <button class="small" onclick="splitInputPair(${pair.id})">✂️ 切分</button>
-                        ${inputPairs.length > 1 ? `<button class="small danger" onclick="deleteInputPair(${pair.id})">删除</button>` : ''}
+                        <button class="small" onclick="splitInputPair(${pair.id})">
+                            <i data-lucide="scissors"></i>
+                            切分
+                        </button>
+                        ${inputPairs.length > 1 ? `<button class="small danger" onclick="deleteInputPair(${pair.id})">
+                            <i data-lucide="trash-2"></i>
+                            删除
+                        </button>` : ''}
                     </div>
                 </div>
             `).join('');
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
         }
 
         function renderOutputPairs() {
@@ -2623,9 +3686,18 @@
                     <div class="output-pair-header">
                         <span style="font-size: 14px; color: #718096; font-weight: 600;">输出 #${pair.id + 1} <span id="q-count-${pair.id}" style="color: #6366f1;"></span></span>
                         <div class="output-actions">
-                            <button id="regen-${pair.id}" class="small" onclick="regenerateSingle(${pair.id})" ${batchGenerating && !isPairGenerating(pair.id) ? 'disabled' : ''}>${batchGenerating && !isPairGenerating(pair.id) ? '🔄 批量生成中' : (isPairGenerating(pair.id) ? '🔄 打断并重新生成' : '🔄 重新生成')}</button>
-                            <button id="stop-gen-${pair.id}" class="small danger" onclick="stopSingleGeneration(${pair.id})" ${isPairGenerating(pair.id) && !isPairStopping(pair.id) ? '' : 'disabled'}>${isPairStopping(pair.id) ? '⏹ 停止中' : '⏹ 停止'}</button>
-                            <button class="small" onclick="compareSingle(${pair.id})">🔍 对比审核</button>
+                            <button id="regen-${pair.id}" class="small" onclick="regenerateSingle(${pair.id})" ${batchGenerating && !isPairGenerating(pair.id) ? 'disabled' : ''}>
+                                <i data-lucide="refresh-cw"></i>
+                                ${batchGenerating && !isPairGenerating(pair.id) ? '批量生成中' : (isPairGenerating(pair.id) ? '打断并重新生成' : '重新生成')}
+                            </button>
+                            <button id="stop-gen-${pair.id}" class="small danger" onclick="stopSingleGeneration(${pair.id})" ${isPairGenerating(pair.id) && !isPairStopping(pair.id) ? '' : 'disabled'}>
+                                <i data-lucide="square"></i>
+                                ${isPairStopping(pair.id) ? '停止中' : '停止'}
+                            </button>
+                            <button class="small" onclick="compareSingle(${pair.id})">
+                                <i data-lucide="search"></i>
+                                对比审核
+                            </button>
                         </div>
                     </div>
                     <div class="output-grid">
@@ -2645,6 +3717,9 @@
                     </div>
                 </div>
             `).join('');
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
         }
 
         function exportInputs() {
@@ -3777,7 +4852,7 @@
         function initializeThemeSystem() {
             // Apply saved theme or default
             const savedTheme = themeManager.getCurrentTheme();
-            themeManager.applyTheme(savedTheme);
+            themeManager.applyTheme(savedTheme, {persist: false});
 
             // Render theme selector
             renderThemeSelector();

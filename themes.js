@@ -2,6 +2,53 @@
 // Supports multiple UI styles with dynamic switching
 
 const themes = {
+    shadcn: {
+        name: 'Shadcn 默认',
+        description: '中性、清晰、组件化工作台',
+        icon: 'panel-top',
+        colors: {
+            primary: '#18181B',
+            primaryForeground: '#FAFAFA',
+            secondary: '#F4F4F5',
+            secondaryForeground: '#18181B',
+            cta: '#0F766E',
+            background: '#FAFAFA',
+            surface: '#FFFFFF',
+            muted: '#F4F4F5',
+            mutedForeground: '#71717A',
+            textPrimary: '#09090B',
+            textSecondary: '#71717A',
+            border: '#E4E4E7',
+            input: '#E4E4E7',
+            ring: '#18181B',
+            success: '#16A34A',
+            error: '#DC2626',
+            warning: '#D97706'
+        },
+        gradients: {
+            body: '#FAFAFA',
+            button: '#18181B',
+            header: '#18181B'
+        },
+        shadows: {
+            sm: '0 1px 2px rgba(24, 24, 27, 0.04)',
+            md: '0 8px 18px rgba(24, 24, 27, 0.06)',
+            lg: '0 18px 40px rgba(24, 24, 27, 0.08)',
+            xl: '0 24px 60px rgba(24, 24, 27, 0.10)'
+        },
+        radius: {
+            sm: '4px',
+            md: '6px',
+            lg: '8px',
+            xl: '10px'
+        },
+        fonts: {
+            heading: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            body: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            mono: "'SF Mono', 'Cascadia Mono', 'Consolas', monospace"
+        }
+    },
+
     modern: {
         name: '现代风格',
         description: 'Glassmorphism + 渐变背景',
@@ -252,7 +299,11 @@ const themes = {
 // Theme Manager Class
 class ThemeManager {
     constructor() {
-        this.currentTheme = this.loadTheme() || 'modern';
+        const savedTheme = this.loadTheme();
+        const explicitPreference = localStorage.getItem('themePreferenceExplicit') === 'true';
+        this.currentTheme = themes[savedTheme] && (explicitPreference || savedTheme !== 'modern')
+            ? savedTheme
+            : 'shadcn';
         this.styleElement = null;
     }
 
@@ -262,9 +313,10 @@ class ThemeManager {
 
     saveTheme(themeName) {
         localStorage.setItem('selectedTheme', themeName);
+        localStorage.setItem('themePreferenceExplicit', 'true');
     }
 
-    applyTheme(themeName) {
+    applyTheme(themeName, options = {}) {
         if (!themes[themeName]) {
             console.error(`Theme "${themeName}" not found`);
             return;
@@ -272,7 +324,9 @@ class ThemeManager {
 
         const theme = themes[themeName];
         this.currentTheme = themeName;
-        this.saveTheme(themeName);
+        if (options.persist !== false) {
+            this.saveTheme(themeName);
+        }
 
         // Remove existing theme style
         if (this.styleElement) {
@@ -301,13 +355,19 @@ class ThemeManager {
         return `
             :root {
                 --primary: ${theme.colors.primary};
+                --primary-foreground: ${theme.colors.primaryForeground || '#FFFFFF'};
                 --secondary: ${theme.colors.secondary};
+                --secondary-foreground: ${theme.colors.secondaryForeground || theme.colors.textPrimary};
                 --cta: ${theme.colors.cta};
                 --background: ${theme.colors.background};
                 --surface: ${theme.colors.surface};
+                --muted: ${theme.colors.muted || theme.colors.background};
+                --muted-foreground: ${theme.colors.mutedForeground || theme.colors.textSecondary};
                 --text-primary: ${theme.colors.textPrimary};
                 --text-secondary: ${theme.colors.textSecondary};
                 --border: ${theme.colors.border};
+                --input: ${theme.colors.input || theme.colors.border};
+                --ring: ${theme.colors.ring || theme.colors.primary};
                 --success: ${theme.colors.success};
                 --error: ${theme.colors.error};
                 --warning: ${theme.colors.warning};
