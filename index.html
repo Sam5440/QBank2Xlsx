@@ -800,10 +800,9 @@
         }
 
         .setup-column {
-            position: sticky;
-            top: 78px;
-            max-height: calc(100vh - 96px);
-            overflow: auto;
+            position: static;
+            max-height: none;
+            overflow: visible;
             padding-right: 2px;
         }
 
@@ -1664,10 +1663,9 @@
         }
 
         body.theme-shadcn .setup-column {
-            position: sticky;
-            top: 80px;
-            max-height: calc(100vh - 96px);
-            overflow: auto;
+            position: static;
+            max-height: none;
+            overflow: visible;
             padding-right: 3px;
         }
 
@@ -1708,11 +1706,27 @@
         body.theme-shadcn .section {
             margin: 0;
             padding: 16px;
+            position: relative;
+            overflow: visible;
+            background: linear-gradient(135deg, var(--section-tint, var(--card)) 0%, var(--card) 42%);
+            border-color: color-mix(in srgb, var(--section-accent, var(--border)) 28%, var(--border));
             transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
+        body.theme-shadcn .section::before,
+        body.theme-shadcn .actions::before {
+            content: "";
+            position: absolute;
+            top: 12px;
+            bottom: 12px;
+            left: 0;
+            width: 3px;
+            border-radius: 0 999px 999px 0;
+            background: var(--section-accent, transparent);
+        }
+
         body.theme-shadcn .section:hover {
-            border-color: #D4D4D8;
+            border-color: color-mix(in srgb, var(--section-accent, #D4D4D8) 42%, var(--border));
             box-shadow: var(--shadow-sm);
             transform: none;
         }
@@ -2204,6 +2218,10 @@
         body.theme-shadcn .actions {
             margin-top: 0;
             padding: 12px;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, var(--section-tint, var(--card)) 0%, var(--card) 46%);
+            border-color: color-mix(in srgb, var(--section-accent, var(--border)) 28%, var(--border));
             justify-content: flex-end;
         }
 
@@ -2433,7 +2451,8 @@
 
         body.theme-shadcn .log-panel {
             width: 100%;
-            height: 312px;
+            height: auto;
+            min-height: 312px;
             background: var(--surface);
         }
 
@@ -2477,12 +2496,69 @@
             border-radius: var(--radius-lg);
             background: var(--surface);
             box-shadow: var(--shadow-lg);
+            width: min(420px, calc(100vw - 32px));
+            padding: 16px;
         }
 
         body.theme-shadcn .theme-panel-header {
+            margin: 0 0 12px;
+            padding-bottom: 12px;
             border-bottom: 1px solid var(--border);
             color: var(--text-primary);
             font-weight: 650;
+        }
+
+        body.theme-shadcn .theme-panel-actions,
+        body.theme-shadcn .section-color-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        body.theme-shadcn .theme-panel-actions {
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        body.theme-shadcn .section-color-grid {
+            display: grid;
+            gap: 8px;
+            max-height: 360px;
+            overflow: auto;
+            padding-right: 2px;
+        }
+
+        body.theme-shadcn .section-color-row {
+            justify-content: space-between;
+            padding: 9px 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+        }
+
+        body.theme-shadcn .section-color-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        body.theme-shadcn .section-color-swatch {
+            width: 14px;
+            height: 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--section-accent, var(--muted));
+        }
+
+        body.theme-shadcn .section-color-row input[type="color"] {
+            width: 38px;
+            height: 32px;
+            min-height: 32px;
+            padding: 2px;
+            cursor: pointer;
         }
 
         body.theme-shadcn .theme-card {
@@ -2622,7 +2698,7 @@
 
         <div class="workspace-grid">
             <div class="workspace-column setup-column">
-        <div class="section question-type-section">
+        <div class="section question-type-section" data-section-key="questionTypes">
             <div class="section-title">
                 <i data-lucide="list-checks"></i>
                 选择题型（可多选）
@@ -2633,7 +2709,7 @@
             </div>
         </div>
 
-        <div class="section api-section">
+        <div class="section api-section" data-section-key="api">
             <div class="section-title">
                 <i data-lucide="settings"></i>
                 API 配置管理 <span style="color: var(--text-secondary); font-size: 14px; font-weight: normal;">(API URL 需要带 /v1，例如: https://api.openai.com/v1)</span>
@@ -2656,7 +2732,7 @@
             <input type="file" id="apiImportFile" accept=".json,application/json" style="display: none;" onchange="handleApiConfigImport(event)">
         </div>
 
-        <div class="section filename-section">
+        <div class="section filename-section" data-section-key="filename">
             <div class="section-title">
                 <i data-lucide="file-output"></i>
                 输出文件名
@@ -2670,7 +2746,7 @@
             </div>
         </div>
 
-        <div class="section directory-section">
+        <div class="section directory-section" data-section-key="directory">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <div class="section-title" style="margin: 0;">
                     <i data-lucide="folder-tree"></i>
@@ -2684,7 +2760,36 @@
             <textarea id="directory" placeholder="输入或提取目录结构..." style="min-height: 120px;"></textarea>
         </div>
 
-        <div class="section generation-section">
+        <div class="section system-prompt-section" data-section-key="systemPrompt">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div class="section-title" style="margin: 0;">
+                    <i data-lucide="file-text"></i>
+                    系统提示词
+                </div>
+                <button class="small" onclick="resetSystemPrompt()">
+                    <i data-lucide="refresh-cw"></i>
+                    还原默认
+                </button>
+            </div>
+            <textarea id="systemPrompt" style="min-height: 240px; font-family: 'Courier New', monospace;"></textarea>
+        </div>
+
+        <div class="section log-panel" id="logPanel" data-section-key="logs">
+            <div class="log-header" id="logHeader">
+                <span style="display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="clipboard-list" style="width: 18px; height: 18px;"></i>
+                    操作日志
+                </span>
+                <div class="log-header-buttons">
+                    <button class="btn-clear" onclick="clearLogs()">清空</button>
+                </div>
+            </div>
+            <div class="log-content" id="logContent"></div>
+        </div>
+
+            </div>
+            <div class="workspace-column output-column">
+        <div class="section generation-section" data-section-key="generation">
             <div style="display: flex; align-items: center; gap: 20px;">
                 <button id="generateBtn" onclick="generateQuestions()">
                     <i data-lucide="rocket"></i>
@@ -2701,36 +2806,7 @@
             </div>
         </div>
 
-        <div class="section system-prompt-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <div class="section-title" style="margin: 0;">
-                    <i data-lucide="file-text"></i>
-                    系统提示词
-                </div>
-                <button class="small" onclick="resetSystemPrompt()">
-                    <i data-lucide="refresh-cw"></i>
-                    还原默认
-                </button>
-            </div>
-            <textarea id="systemPrompt" style="min-height: 240px; font-family: 'Courier New', monospace;"></textarea>
-        </div>
-
-        <div class="section log-panel" id="logPanel">
-            <div class="log-header" id="logHeader">
-                <span style="display: flex; align-items: center; gap: 8px;">
-                    <i data-lucide="clipboard-list" style="width: 18px; height: 18px;"></i>
-                    操作日志
-                </span>
-                <div class="log-header-buttons">
-                    <button class="btn-clear" onclick="clearLogs()">清空</button>
-                </div>
-            </div>
-            <div class="log-content" id="logContent"></div>
-        </div>
-
-            </div>
-            <div class="workspace-column output-column">
-        <div class="section requirement-section">
+        <div class="section requirement-section" data-section-key="requirements">
             <div class="section-title">
                 <i data-lucide="edit-3"></i>
                 输入题目需求
@@ -2753,7 +2829,7 @@
             <input type="file" id="importFile" accept=".json,.txt,application/json,text/plain" multiple style="display: none;" onchange="handleImport(event)">
         </div>
 
-        <div class="section result-section">
+        <div class="section result-section" data-section-key="results">
             <div class="section-title">
                 <i data-lucide="sparkles"></i>
                 AI 生成结果
@@ -2762,7 +2838,7 @@
             <div class="error" id="error" style="display: none;"></div>
         </div>
 
-        <div class="section compare-section">
+        <div class="section compare-section" data-section-key="compare">
             <div class="section-title">
                 <i data-lucide="git-compare"></i>
                 AB 对比审核
@@ -2836,13 +2912,30 @@
             </div>
         </div>
 
-        <div class="actions">
+        <div class="actions" data-section-key="export">
             <button id="exportBtn" onclick="exportExcel()" disabled>
                 <i data-lucide="download"></i>
                 导出 Excel
             </button>
         </div>
             </div>
+        </div>
+    </div>
+
+    <div class="theme-switcher">
+        <button class="theme-toggle-btn" type="button" onclick="toggleThemePanel()" aria-label="打开主题设置">
+            <i data-lucide="palette"></i>
+        </button>
+        <div class="theme-panel" id="themePanel">
+            <div class="theme-panel-header">
+                <i data-lucide="palette"></i>
+                默认主题区域配色
+            </div>
+            <div class="theme-panel-actions">
+                <button class="small" type="button" onclick="randomizeSectionColors()">随机配色</button>
+                <button class="small" type="button" onclick="resetSectionColors()">重置默认</button>
+            </div>
+            <div class="section-color-grid" id="sectionColorGrid"></div>
         </div>
     </div>
 
@@ -2877,6 +2970,33 @@
             fileB: ''
         };
         let compareChatHistory = [];
+        const SECTION_COLOR_STORAGE_KEY = 'sectionAccentColors';
+        const SECTION_COLOR_ITEMS = [
+            {key: 'questionTypes', label: '选择题型'},
+            {key: 'api', label: 'API 配置管理'},
+            {key: 'filename', label: '输出文件名'},
+            {key: 'directory', label: '目录结构'},
+            {key: 'systemPrompt', label: '系统提示词'},
+            {key: 'logs', label: '操作日志'},
+            {key: 'generation', label: '生成题目'},
+            {key: 'requirements', label: '输入题目需求'},
+            {key: 'results', label: 'AI 生成结果'},
+            {key: 'compare', label: 'AB 对比审核'},
+            {key: 'export', label: '导出 Excel'}
+        ];
+        const SECTION_COLOR_PALETTE = [
+            '#0F766E',
+            '#2563EB',
+            '#B45309',
+            '#16A34A',
+            '#DC2626',
+            '#9333EA',
+            '#0891B2',
+            '#4F46E5',
+            '#C2410C',
+            '#64748B',
+            '#BE123C'
+        ];
 
         // 日志系统
         function addLog(action, detail = '') {
@@ -2908,6 +3028,134 @@
             localStorage.removeItem('aiLogs');
             renderLogs();
             addLog('清空日志', '所有日志已清除');
+        }
+
+        function getDefaultSectionColors(randomize = true) {
+            const palette = [...SECTION_COLOR_PALETTE];
+            if (randomize) {
+                for (let i = palette.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [palette[i], palette[j]] = [palette[j], palette[i]];
+                }
+            }
+            return SECTION_COLOR_ITEMS.reduce((colors, item, index) => {
+                colors[item.key] = palette[index % palette.length];
+                return colors;
+            }, {});
+        }
+
+        function loadSectionColors() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(SECTION_COLOR_STORAGE_KEY) || 'null');
+                if (saved && typeof saved === 'object') {
+                    return {
+                        ...getDefaultSectionColors(false),
+                        ...saved
+                    };
+                }
+            } catch (e) {
+                console.warn('读取区域配色失败，已使用默认配色:', e);
+            }
+
+            const colors = getDefaultSectionColors(true);
+            localStorage.setItem(SECTION_COLOR_STORAGE_KEY, JSON.stringify(colors));
+            return colors;
+        }
+
+        function hexToRgba(hex, alpha) {
+            const normalized = hex.replace('#', '');
+            const value = normalized.length === 3
+                ? normalized.split('').map(char => char + char).join('')
+                : normalized;
+            const intValue = Number.parseInt(value, 16);
+            const r = (intValue >> 16) & 255;
+            const g = (intValue >> 8) & 255;
+            const b = intValue & 255;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        function applySectionColors(colors = loadSectionColors()) {
+            SECTION_COLOR_ITEMS.forEach(item => {
+                document.querySelectorAll(`[data-section-key="${item.key}"]`).forEach(element => {
+                    const color = colors[item.key];
+                    element.style.setProperty('--section-accent', color);
+                    element.style.setProperty('--section-tint', hexToRgba(color, 0.07));
+                });
+            });
+            updateSectionColorControls(colors);
+        }
+
+        function updateSectionColorControls(colors = loadSectionColors()) {
+            SECTION_COLOR_ITEMS.forEach(item => {
+                document.querySelectorAll(`[data-section-color="${item.key}"]`).forEach(element => {
+                    element.style.setProperty('--section-accent', colors[item.key]);
+                });
+            });
+        }
+
+        function saveSectionColor(key, color) {
+            const colors = loadSectionColors();
+            colors[key] = color;
+            localStorage.setItem(SECTION_COLOR_STORAGE_KEY, JSON.stringify(colors));
+            applySectionColors(colors);
+        }
+
+        function renderSectionColorControls() {
+            const grid = document.getElementById('sectionColorGrid');
+            if (!grid) return;
+            const colors = loadSectionColors();
+            grid.innerHTML = '';
+            SECTION_COLOR_ITEMS.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'section-color-row';
+                row.dataset.sectionColor = item.key;
+                row.style.setProperty('--section-accent', colors[item.key]);
+
+                const name = document.createElement('div');
+                name.className = 'section-color-name';
+
+                const swatch = document.createElement('span');
+                swatch.className = 'section-color-swatch';
+
+                const label = document.createElement('span');
+                label.textContent = item.label;
+
+                const input = document.createElement('input');
+                input.type = 'color';
+                input.value = colors[item.key];
+                input.setAttribute('aria-label', `${item.label}配色`);
+                input.addEventListener('input', event => saveSectionColor(item.key, event.target.value));
+
+                name.append(swatch, label);
+                row.append(name, input);
+                grid.appendChild(row);
+            });
+        }
+
+        function initializeSectionColorSettings() {
+            renderSectionColorControls();
+            applySectionColors(loadSectionColors());
+        }
+
+        function toggleThemePanel() {
+            const panel = document.getElementById('themePanel');
+            if (panel) panel.classList.toggle('active');
+        }
+
+        function randomizeSectionColors() {
+            const colors = getDefaultSectionColors(true);
+            localStorage.setItem(SECTION_COLOR_STORAGE_KEY, JSON.stringify(colors));
+            renderSectionColorControls();
+            applySectionColors(colors);
+            addLog('随机区域配色', '已为所有区域重新生成配色');
+        }
+
+        function resetSectionColors() {
+            const colors = getDefaultSectionColors(false);
+            localStorage.setItem(SECTION_COLOR_STORAGE_KEY, JSON.stringify(colors));
+            renderSectionColorControls();
+            applySectionColors(colors);
+            addLog('重置区域配色', '已恢复默认区域配色');
         }
 
         async function loadSystemPrompt() {
@@ -4963,6 +5211,7 @@
             updateGenerationModeControls();
 
             initializeThemeSystem();
+            initializeSectionColorSettings();
 
             addLog('页面加载', '系统初始化完成');
 
