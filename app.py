@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field
 import os
 import time
@@ -75,15 +75,15 @@ TRANSPORT_PUBLIC_KEY = get_transport_public_key_pem(TRANSPORT_PRIVATE_KEY)
 
 
 def decrypt_transport_value(value: str) -> str:
-    """Decrypt an RSA transport value; keep plaintext fallback for older clients."""
+    """Decrypt an RSA-OAEP transport value."""
     if not value:
         return value
     try:
         cipher_bytes = base64.b64decode(value)
         plain_bytes = TRANSPORT_PRIVATE_KEY.decrypt(cipher_bytes, padding.PKCS1v15())
         return plain_bytes.decode('utf-8')
-    except Exception:
-        return value
+    except Exception as exc:
+        raise ValueError("API URL/API Key must be RSA-OAEP encrypted") from exc
 
 
 def resolve_api_credentials(req):
@@ -185,6 +185,11 @@ async def index():
         return f.read()
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    return Response(status_code=204)
+
+
 @app.get("/themes.js")
 async def get_themes_js():
     """Serve themes.js static file"""
@@ -205,7 +210,13 @@ async def get_encryption_key():
 
 @app.get("/api/transport-public-key")
 async def get_transport_public_key():
-    return {"publicKey": TRANSPORT_PUBLIC_KEY, "algorithm": "RSA/PKCS1v15"}
+    public_numbers = TRANSPORT_PRIVATE_KEY.public_key().public_numbers()
+    return {
+        "publicKey": TRANSPORT_PUBLIC_KEY,
+        "algorithm": "RSAES-PKCS1-v1_5",
+        "modulus": format(public_numbers.n, "x"),
+        "exponent": format(public_numbers.e, "x")
+    }
 
 
 @app.get("/api/system-prompt")

@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 题库生成器 - QBank2Xlsx</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
@@ -17,31 +16,37 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
-            --primary: #2563EB;
-            --secondary: #3B82F6;
-            --cta: #F97316;
-            --background: #F8FAFC;
+            --primary: #18181B;
+            --primary-foreground: #FAFAFA;
+            --secondary: #F4F4F5;
+            --secondary-foreground: #18181B;
+            --cta: #0F766E;
+            --background: #FAFAFA;
             --surface: #FFFFFF;
-            --text-primary: #1E293B;
-            --text-secondary: #64748B;
-            --border: #E2E8F0;
-            --success: #10B981;
-            --error: #EF4444;
-            --warning: #F59E0B;
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-            --radius-sm: 6px;
-            --radius-md: 10px;
-            --radius-lg: 14px;
-            --radius-xl: 18px;
+            --muted: #F4F4F5;
+            --muted-foreground: #71717A;
+            --text-primary: #09090B;
+            --text-secondary: #71717A;
+            --border: #E4E4E7;
+            --input: #E4E4E7;
+            --ring: #18181B;
+            --success: #16A34A;
+            --error: #DC2626;
+            --warning: #D97706;
+            --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.04);
+            --shadow-md: 0 8px 18px rgba(24, 24, 27, 0.06);
+            --shadow-lg: 0 18px 40px rgba(24, 24, 27, 0.08);
+            --shadow-xl: 0 24px 60px rgba(24, 24, 27, 0.10);
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius-lg: 8px;
+            --radius-xl: 10px;
         }
 
         body {
             font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             padding: 24px 16px;
-            background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 50%, #BFDBFE 100%);
+            background: #FAFAFA;
             min-height: 100vh;
             line-height: 1.6;
             color: var(--text-primary);
@@ -169,15 +174,15 @@
         }
         .type-item.active {
             border-color: var(--primary);
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            background: var(--primary);
+            box-shadow: var(--shadow-sm);
         }
         .type-item.active .type-btn {
-            color: white;
+            color: var(--primary-foreground);
             font-weight: 600;
         }
         .type-item.active .action-btns button {
-            color: white;
+            color: var(--primary-foreground);
             border-left-color: rgba(255,255,255,0.25);
         }
         .action-btns {
@@ -199,7 +204,7 @@
             border-left: none;
         }
         .action-btns button:hover {
-            background: rgba(37, 99, 235, 0.08);
+            background: var(--muted);
         }
         /* Notice Tip */
         .notice-tip {
@@ -236,7 +241,7 @@
         input:focus, textarea:focus, select:focus {
             outline: none;
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.10);
         }
         input:hover, textarea:hover, select:hover {
             border-color: var(--secondary);
@@ -253,19 +258,9 @@
             flex-direction: column;
             gap: 16px;
         }
-        .api-config-actions,
-        .api-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .api-config-actions {
-            margin-top: 12px;
-        }
         .api-row {
             display: grid;
-            grid-template-columns: 40px 150px 1fr 1fr 150px minmax(170px, auto);
+            grid-template-columns: 40px 150px 1fr 1fr 150px auto;
             gap: 12px;
             align-items: center;
             padding: 18px;
@@ -288,10 +283,6 @@
         .api-row input[type="password"] {
             margin: 0;
         }
-        .api-actions {
-            justify-content: flex-end;
-        }
-
         /* Buttons */
         button {
             padding: 14px 28px;
@@ -617,7 +608,7 @@
 
         .theme-toggle-btn:hover {
             transform: scale(1.1);
-            box-shadow: 0 8px 16px rgba(37, 99, 235, 0.4);
+            box-shadow: var(--shadow-md);
         }
 
         .theme-toggle-btn svg {
@@ -687,7 +678,7 @@
 
         .theme-card.active {
             border-color: var(--primary);
-            background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+            background: var(--muted);
         }
 
         .theme-card-header {
@@ -740,25 +731,31 @@
 
         /* Workbench redesign */
         :root {
-            --primary: #2563EB;
-            --secondary: #059669;
-            --cta: #EA580C;
-            --background: #F5F7FB;
+            --primary: #18181B;
+            --primary-foreground: #FAFAFA;
+            --secondary: #F4F4F5;
+            --secondary-foreground: #18181B;
+            --cta: #0F766E;
+            --background: #FAFAFA;
             --surface: #FFFFFF;
-            --text-primary: #172033;
-            --text-secondary: #647084;
-            --border: #D8DEE8;
-            --success: #059669;
+            --muted: #F4F4F5;
+            --muted-foreground: #71717A;
+            --text-primary: #09090B;
+            --text-secondary: #71717A;
+            --border: #E4E4E7;
+            --input: #E4E4E7;
+            --ring: #18181B;
+            --success: #16A34A;
             --error: #DC2626;
             --warning: #D97706;
-            --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-            --shadow-md: 0 8px 20px rgba(15, 23, 42, 0.08);
-            --shadow-lg: 0 16px 36px rgba(15, 23, 42, 0.12);
-            --shadow-xl: 0 24px 48px rgba(15, 23, 42, 0.14);
+            --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.04);
+            --shadow-md: 0 8px 18px rgba(24, 24, 27, 0.06);
+            --shadow-lg: 0 18px 40px rgba(24, 24, 27, 0.08);
+            --shadow-xl: 0 24px 60px rgba(24, 24, 27, 0.10);
             --radius-sm: 4px;
             --radius-md: 6px;
             --radius-lg: 8px;
-            --radius-xl: 8px;
+            --radius-xl: 10px;
         }
 
         body {
@@ -945,8 +942,8 @@
 
         .type-item.active {
             border-color: var(--primary);
-            background: linear-gradient(180deg, #EFF6FF 0%, #FFFFFF 100%);
-            box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.35), 0 10px 22px rgba(37, 99, 235, 0.10);
+            background: var(--muted);
+            box-shadow: inset 0 0 0 1px var(--primary), var(--shadow-sm);
         }
 
         .type-card-main {
@@ -979,7 +976,7 @@
             border: 1px solid #CAD6E6;
             border-radius: var(--radius-md);
             color: transparent;
-            background: #F8FAFC;
+            background: var(--muted);
         }
 
         .type-check svg {
@@ -1032,7 +1029,7 @@
             padding: 6px 8px;
             border: 1px solid #D7E0EC;
             border-radius: var(--radius-md);
-            background: #F8FAFC;
+            background: var(--muted);
             color: var(--text-secondary);
             box-shadow: none;
         }
@@ -1042,7 +1039,7 @@
         }
 
         .action-btns button:hover {
-            background: #EDF4FF;
+            background: var(--secondary);
             color: var(--primary);
         }
 
@@ -1152,7 +1149,7 @@
         }
 
         .compare-markdown th {
-            background: #F8FAFC;
+            background: var(--muted);
             font-weight: 700;
         }
 
@@ -1161,7 +1158,7 @@
             padding: 12px;
             border: 1px solid #D7E0EC;
             border-radius: var(--radius-lg);
-            background: #F8FAFC;
+            background: var(--muted);
         }
 
         .compare-chat-header {
@@ -1208,9 +1205,9 @@
 
         .chat-bubble.user {
             align-self: flex-end;
-            background: #DBEAFE;
-            border-color: #BFDBFE;
-            color: #0F172A;
+            background: var(--primary);
+            border-color: var(--primary);
+            color: var(--primary-foreground);
         }
 
         .chat-bubble.assistant {
@@ -1257,7 +1254,7 @@
 
         input:focus, textarea:focus, select:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+            box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.12);
         }
 
         textarea {
@@ -1302,7 +1299,7 @@
             justify-content: center;
         }
 
-        .api-actions {
+        .api-row .action-btns {
             grid-column: 2 / -1;
             justify-content: flex-start;
         }
@@ -1611,7 +1608,7 @@
             }
 
             .api-row input:not([type="radio"]),
-            .api-row button {
+            .api-row .action-btns {
                 grid-column: 1 / -1;
             }
 
@@ -1993,7 +1990,7 @@
             justify-content: center;
         }
 
-        body.theme-shadcn .api-actions {
+        body.theme-shadcn .api-row .action-btns {
             grid-column: 2 / -1;
             justify-content: flex-start;
         }
@@ -2641,7 +2638,7 @@
             body.theme-shadcn .api-row input[type="password"],
             body.theme-shadcn .api-row input[placeholder="API URL"],
             body.theme-shadcn .api-row input[placeholder="Model"],
-            body.theme-shadcn .api-row button {
+            body.theme-shadcn .api-row .action-btns {
                 grid-column: 1 / -1;
                 grid-row: auto;
             }
@@ -2680,7 +2677,7 @@
         }
     </style>
 </head>
-<body>
+<body class="theme-shadcn">
     <div class="log-panel minimized" id="logPanel">
         <div class="log-header" id="logHeader">
             <span style="display: flex; align-items: center; gap: 8px;">
@@ -2721,7 +2718,7 @@
                 API 配置管理 <span style="color: var(--text-secondary); font-size: 14px; font-weight: normal;">(API URL 需要带 /v1，例如: https://api.openai.com/v1)</span>
             </div>
             <div class="api-config" id="apiConfigs"></div>
-            <div class="api-config-actions">
+            <div class="type-picker-actions">
                 <button class="small" onclick="addApiConfig()">
                     <i data-lucide="plus"></i>
                     添加 API 配置
@@ -2929,7 +2926,7 @@
         let selectedTypes = [];
         let generatedJSON = '';
         let encryptionKey = '';
-        let transportEncryptor = null;
+        let transportPublicKey = null;
         let apiConfigs = [];
         let inputPairs = [{id: 0, text: ''}];
         let outputPairs = [{id: 0, editable: '', full: ''}];
@@ -3308,19 +3305,84 @@
         async function loadTransportPublicKey() {
             const response = await fetch('/api/transport-public-key');
             const data = await response.json();
-            transportEncryptor = new JSEncrypt();
-            transportEncryptor.setPublicKey(data.publicKey);
+            transportPublicKey = {
+                modulus: BigInt(`0x${data.modulus}`),
+                exponent: BigInt(`0x${data.exponent}`),
+                byteLength: Math.ceil(data.modulus.length / 2)
+            };
+        }
+
+        function bytesToBigInt(bytes) {
+            let hex = '';
+            bytes.forEach(byte => hex += byte.toString(16).padStart(2, '0'));
+            return BigInt(`0x${hex || '0'}`);
+        }
+
+        function bigIntToBytes(value, length) {
+            let hex = value.toString(16);
+            if (hex.length % 2) hex = `0${hex}`;
+            const bytes = Uint8Array.from(hex.match(/.{2}/g).map(part => parseInt(part, 16)));
+            if (bytes.length > length) {
+                throw new Error('RSA 加密结果长度异常');
+            }
+            const output = new Uint8Array(length);
+            output.set(bytes, length - bytes.length);
+            return output;
+        }
+
+        function modPow(base, exponent, modulus) {
+            let result = 1n;
+            base %= modulus;
+            while (exponent > 0n) {
+                if (exponent & 1n) result = (result * base) % modulus;
+                exponent >>= 1n;
+                base = (base * base) % modulus;
+            }
+            return result;
+        }
+
+        function getNonZeroRandomBytes(length) {
+            const bytes = new Uint8Array(length);
+            let offset = 0;
+            while (offset < length) {
+                const chunk = new Uint8Array(length - offset);
+                crypto.getRandomValues(chunk);
+                for (const byte of chunk) {
+                    if (byte !== 0) {
+                        bytes[offset++] = byte;
+                        if (offset === length) break;
+                    }
+                }
+            }
+            return bytes;
         }
 
         function encryptTransportValue(value) {
-            if (!transportEncryptor) {
+            if (!transportPublicKey) {
                 throw new Error('API 传输加密未初始化');
             }
-            const encrypted = transportEncryptor.encrypt(String(value ?? ''));
-            if (!encrypted) {
-                throw new Error('API 传输加密失败');
+            const encoded = new TextEncoder().encode(String(value ?? ''));
+            const keyLength = transportPublicKey.byteLength;
+            if (encoded.length > keyLength - 11) {
+                throw new Error('API URL/API Key 过长，无法使用当前 RSA 密钥加密');
             }
-            return encrypted;
+            const paddingLength = keyLength - encoded.length - 3;
+            const padded = new Uint8Array(keyLength);
+            padded[0] = 0x00;
+            padded[1] = 0x02;
+            padded.set(getNonZeroRandomBytes(paddingLength), 2);
+            padded[2 + paddingLength] = 0x00;
+            padded.set(encoded, 3 + paddingLength);
+
+            const encrypted = modPow(
+                bytesToBigInt(padded),
+                transportPublicKey.exponent,
+                transportPublicKey.modulus
+            );
+            const bytes = bigIntToBytes(encrypted, keyLength);
+            let binary = '';
+            bytes.forEach(byte => binary += String.fromCharCode(byte));
+            return btoa(binary);
         }
 
         async function buildApiRequestPayload(apiConfig, extra = {}) {
@@ -3413,20 +3475,20 @@
         function renderApiConfigs() {
             const container = document.getElementById('apiConfigs');
             container.innerHTML = apiConfigs.map((config, idx) => `
-                <div class="api-row">
+                <form class="api-row" onsubmit="event.preventDefault()">
                     <input type="radio" name="selectedApi" ${config.selected ? 'checked' : ''} onchange="selectApi(${idx})">
-                    <input type="text" placeholder="名称" value="${escapeHTML(config.name)}" onchange="updateConfig(${idx}, 'name', this.value)">
-                    <input type="text" placeholder="API URL" value="${escapeHTML(config.url)}" onchange="updateConfig(${idx}, 'url', this.value)">
-                    <input type="password" placeholder="API Key" value="${escapeHTML(config.key)}" onchange="updateConfig(${idx}, 'key', this.value)">
-                    <input type="text" placeholder="Model" value="${escapeHTML(config.model)}" onchange="updateConfig(${idx}, 'model', this.value)">
-                    <div class="api-actions">
+                    <input id="api-name-${idx}" name="apiName${idx}" type="text" placeholder="名称" value="${escapeHTML(config.name)}" autocomplete="off" onchange="updateConfig(${idx}, 'name', this.value)">
+                    <input id="api-url-${idx}" name="apiUrl${idx}" type="text" placeholder="API URL" value="${escapeHTML(config.url)}" autocomplete="url" onchange="updateConfig(${idx}, 'url', this.value)">
+                    <input id="api-key-${idx}" name="apiKey${idx}" type="password" placeholder="API Key" value="${escapeHTML(config.key)}" autocomplete="off" onchange="updateConfig(${idx}, 'key', this.value)">
+                    <input id="api-model-${idx}" name="apiModel${idx}" type="text" placeholder="Model" value="${escapeHTML(config.model)}" autocomplete="off" onchange="updateConfig(${idx}, 'model', this.value)">
+                    <div class="action-btns">
                         <button class="small" onclick="testApiConfig(${idx})">
                             <i data-lucide="plug-zap"></i>
                             测试
                         </button>
                         <button class="small danger" onclick="deleteConfig(${idx})">删除</button>
                     </div>
-                </div>
+                </form>
             `).join('');
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
@@ -5010,7 +5072,6 @@
                 document.querySelector('.log-header-buttons button').textContent = '−';
             }
 
-            // Initialize theme system
             initializeThemeSystem();
 
             addLog('页面加载', '系统初始化完成');
