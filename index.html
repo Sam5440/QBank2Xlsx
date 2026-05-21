@@ -423,55 +423,32 @@
         }
         /* Log Panel */
         .log-panel {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 480px;
-            height: 420px;
-            background: white;
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-xl);
-            z-index: 1000;
             display: flex;
             flex-direction: column;
-            resize: both;
+            min-height: 260px;
+            max-height: 420px;
             overflow: hidden;
-            min-width: 320px;
-            min-height: 220px;
-            max-width: 90vw;
-            max-height: 90vh;
-        }
-        .log-panel.minimized {
-            width: 220px;
-            height: auto;
-            resize: none;
         }
         .log-header {
-            padding: 14px 18px;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-            color: white;
+            padding-bottom: 12px;
+            color: var(--text-primary);
             font-weight: 600;
-            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            cursor: move;
             font-size: 15px;
+            border-bottom: 1px solid var(--border);
         }
         .log-header-buttons {
             display: flex;
             gap: 10px;
         }
         .log-content {
-            padding: 12px;
+            padding-top: 12px;
             flex: 1;
             overflow-y: auto;
             font-size: 12px;
             font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
-        }
-        .log-panel.minimized .log-content {
-            display: none;
         }
         .log-entry {
             padding: 10px 12px;
@@ -1466,34 +1443,11 @@
         }
 
         .log-panel {
-            top: auto;
-            right: 74px;
-            bottom: 18px;
-            left: auto;
-            transform: none;
-            width: 340px;
-            height: 300px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-lg);
-        }
-
-        .log-panel.minimized {
-            width: 190px;
-            height: auto;
-            min-width: 0;
-            min-height: 0;
-            resize: none;
-        }
-
-        .log-panel.minimized .log-content {
-            display: none;
+            width: 100%;
+            height: 360px;
         }
 
         .log-header {
-            padding: 10px 12px;
-            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-            background: #172033;
             font-size: 13px;
         }
 
@@ -1566,9 +1520,7 @@
             }
 
             .log-panel {
-                width: min(360px, calc(100vw - 24px));
-                right: 12px;
-                top: 76px;
+                width: 100%;
             }
         }
 
@@ -1622,9 +1574,6 @@
             }
 
             .log-panel {
-                top: auto;
-                right: 12px;
-                bottom: 74px;
                 height: 300px;
             }
         }
@@ -2483,26 +2432,13 @@
         }
 
         body.theme-shadcn .log-panel {
-            right: 76px;
-            bottom: 16px;
-            width: 360px;
+            width: 100%;
             height: 312px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
             background: var(--surface);
-            box-shadow: var(--shadow-lg);
-        }
-
-        body.theme-shadcn .log-panel.minimized {
-            width: auto;
-            min-width: 180px;
-            height: auto;
         }
 
         body.theme-shadcn .log-header {
-            padding: 10px 12px;
             border-bottom: 1px solid var(--border);
-            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
             background: var(--surface);
             color: var(--text-primary);
             font-size: 13px;
@@ -2589,9 +2525,7 @@
             }
 
             body.theme-shadcn .log-panel {
-                width: min(360px, calc(100vw - 24px));
-                right: 12px;
-                bottom: 68px;
+                width: 100%;
             }
         }
 
@@ -2678,19 +2612,6 @@
     </style>
 </head>
 <body class="theme-shadcn">
-    <div class="log-panel minimized" id="logPanel">
-        <div class="log-header" id="logHeader">
-            <span style="display: flex; align-items: center; gap: 8px;">
-                <i data-lucide="clipboard-list" style="width: 18px; height: 18px;"></i>
-                操作日志
-            </span>
-            <div class="log-header-buttons">
-                <button class="btn-clear" onclick="toggleMinimize()">+</button>
-                <button class="btn-clear" onclick="clearLogs()">清空</button>
-            </div>
-        </div>
-        <div class="log-content" id="logContent"></div>
-    </div>
     <div class="container">
         <div class="header">
             <div class="header-icon">
@@ -2792,6 +2713,19 @@
                 </button>
             </div>
             <textarea id="systemPrompt" style="min-height: 240px; font-family: 'Courier New', monospace;"></textarea>
+        </div>
+
+        <div class="section log-panel" id="logPanel">
+            <div class="log-header" id="logHeader">
+                <span style="display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="clipboard-list" style="width: 18px; height: 18px;"></i>
+                    操作日志
+                </span>
+                <div class="log-header-buttons">
+                    <button class="btn-clear" onclick="clearLogs()">清空</button>
+                </div>
+            </div>
+            <div class="log-content" id="logContent"></div>
         </div>
 
             </div>
@@ -2975,40 +2909,6 @@
             renderLogs();
             addLog('清空日志', '所有日志已清除');
         }
-
-        function toggleMinimize() {
-            const panel = document.getElementById('logPanel');
-            const btn = event.target;
-            panel.classList.toggle('minimized');
-            btn.textContent = panel.classList.contains('minimized') ? '+' : '−';
-            localStorage.setItem('logMinimized', panel.classList.contains('minimized'));
-        }
-
-        // Drag functionality
-        let isDragging = false;
-        let currentX, currentY, initialX, initialY;
-
-        document.getElementById('logHeader').addEventListener('mousedown', (e) => {
-            isDragging = true;
-            const panel = document.getElementById('logPanel');
-            const rect = panel.getBoundingClientRect();
-            initialX = e.clientX - rect.left;
-            initialY = e.clientY - rect.top;
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                e.preventDefault();
-                const panel = document.getElementById('logPanel');
-                panel.style.transform = 'none';
-                panel.style.left = (e.clientX - initialX) + 'px';
-                panel.style.top = (e.clientY - initialY) + 'px';
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-        });
 
         async function loadSystemPrompt() {
             try {
@@ -5061,16 +4961,6 @@
             await loadQuestionTypes();
             renderLogs();
             updateGenerationModeControls();
-
-            const savedLogMinimized = localStorage.getItem('logMinimized');
-            const isMinimized = savedLogMinimized === null ? true : savedLogMinimized === 'true';
-            if (isMinimized) {
-                document.getElementById('logPanel').classList.add('minimized');
-                document.querySelector('.log-header-buttons button').textContent = '+';
-            } else {
-                document.getElementById('logPanel').classList.remove('minimized');
-                document.querySelector('.log-header-buttons button').textContent = '−';
-            }
 
             initializeThemeSystem();
 
