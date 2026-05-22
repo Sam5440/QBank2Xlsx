@@ -1424,6 +1424,63 @@
             box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.08);
         }
 
+        .generation-progress-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 10px;
+        }
+
+        .generation-progress-box {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            min-width: 148px;
+            max-width: 100%;
+            min-height: 30px;
+            padding: 6px 9px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.2;
+            box-shadow: var(--shadow-sm);
+            white-space: nowrap;
+        }
+
+        .progress-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: var(--muted-foreground);
+            flex: 0 0 auto;
+        }
+
+        .generation-progress-box.progress-running .progress-dot,
+        .generation-progress-box.progress-queued .progress-dot {
+            background: var(--warning);
+        }
+
+        .generation-progress-box.progress-done .progress-dot {
+            background: var(--success);
+        }
+
+        .generation-progress-box.progress-error .progress-dot,
+        .generation-progress-box.progress-cancelled .progress-dot {
+            background: var(--error);
+        }
+
+        .progress-main {
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .progress-detail {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .error {
             padding: 10px 12px;
             border: 1px solid #FECACA;
@@ -2796,8 +2853,8 @@
                     生成题目
                 </button>
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                    <input type="checkbox" id="streamToggle" checked onchange="updateGenerationModeControls()" style="width: 18px; height: 18px; cursor: pointer;">
-                    <span style="font-size: 14px; color: var(--text-primary);">流式输出</span>
+                    <input type="checkbox" id="streamToggle" onchange="updateGenerationModeControls()" style="width: 18px; height: 18px; cursor: pointer;">
+                    <span style="font-size: 14px; color: var(--text-primary);">前端显示流式生成</span>
                 </label>
                 <label id="batchConcurrencyGroup" style="display: flex; align-items: center; gap: 8px;">
                     <span style="font-size: 14px; color: var(--text-primary);">并发数</span>
@@ -3868,6 +3925,75 @@
             return outputPairs.some(pair => pair.editable && pair.editable.trim());
         }
 
+        function normalizeGenerationProgress(progress = {}) {
+            const status = progress.status || 'idle';
+            const charCount = Number.isFinite(progress.charCount) ? progress.charCount : 0;
+            const questionCount = Number.isFinite(progress.questionCount) ? progress.questionCount : 0;
+            const labels = {
+                idle: '等待',
+                queued: '排队中',
+                running: '生成中',
+                done: '已完成',
+                error: '失败',
+                cancelled: '已取消',
+                stopped: '已停止'
+            };
+            let detail = progress.detail || `${charCount} 字`;
+            if (status === 'done' && questionCount > 0) {
+                detail = `${questionCount} 题 · ${charCount} 字`;
+            }
+            if ((status === 'error' || status === 'cancelled') && progress.error) {
+                detail = progress.error;
+            }
+            return {
+                status,
+                label: labels[status] || labels.idle,
+                detail,
+                charCount,
+                questionCount,
+                error: progress.error || null
+            };
+        }
+
+        function getProgressClass(status) {
+            if (status === 'running' || status === 'queued') return `progress-${status}`;
+            if (status === 'done' || status === 'error' || status === 'cancelled') return `progress-${status}`;
+            if (status === 'stopped') return 'progress-cancelled';
+            return 'progress-idle';
+        }
+
+        function renderGenerationProgressBox(pair) {
+            const progress = normalizeGenerationProgress(pair.progress);
+            return `
+                <div class="generation-progress-row">
+                    <div id="progress-${pair.id}" class="generation-progress-box ${getProgressClass(progress.status)}" title="${escapeHTML(progress.detail)}">
+                        <span class="progress-dot"></span>
+                        <span class="progress-main">${escapeHTML(progress.label)}</span>
+                        <span class="progress-detail">${escapeHTML(progress.detail)}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function setGenerationProgress(pairId, progress) {
+            const outputPair = outputPairs.find(pair => pair.id === pairId);
+            const normalized = normalizeGenerationProgress(progress);
+            if (outputPair) {
+                outputPair.progress = normalized;
+            }
+
+            const progressEl = document.getElementById(`progress-${pairId}`);
+            if (progressEl) {
+                progressEl.className = `generation-progress-box ${getProgressClass(normalized.status)}`;
+                progressEl.title = normalized.detail;
+                progressEl.innerHTML = `
+                    <span class="progress-dot"></span>
+                    <span class="progress-main">${escapeHTML(normalized.label)}</span>
+                    <span class="progress-detail">${escapeHTML(normalized.detail)}</span>
+                `;
+            }
+        }
+
         function getBatchConcurrency() {
             const input = document.getElementById('batchConcurrency');
             const value = parseInt(input?.value, 10);
@@ -3887,14 +4013,14 @@
             const streamToggle = document.getElementById('streamToggle');
             const concurrencyInput = document.getElementById('batchConcurrency');
             const concurrencyGroup = document.getElementById('batchConcurrencyGroup');
-            const isStreaming = streamToggle ? streamToggle.checked : true;
+            const showFrontendStream = streamToggle ? streamToggle.checked : false;
             const isBusy = batchGenerating || activeGenerations.size > 0;
 
             if (concurrencyInput) {
-                concurrencyInput.disabled = isStreaming || isBusy;
+                concurrencyInput.disabled = showFrontendStream || isBusy;
             }
             if (concurrencyGroup) {
-                concurrencyGroup.style.opacity = isStreaming ? '0.45' : '1';
+                concurrencyGroup.style.opacity = showFrontendStream ? '0.45' : '1';
             }
         }
 
@@ -3954,12 +4080,28 @@
             const active = activeGenerations.get(pairId);
             if (!active) return false;
 
-            active.stopping = true;
+            const affectedIds = [];
+            activeGenerations.forEach((generation, id) => {
+                if (generation === active || generation.controller === active.controller || (active.backendJobId && generation.backendJobId === active.backendJobId)) {
+                    generation.stopping = true;
+                    affectedIds.push(id);
+                    if (options.forceClear) {
+                        activeGenerations.delete(id);
+                    }
+                }
+            });
+
             active.controller.abort();
+            if (active.backendJobId) {
+                fetch(`/api/generate-batch-stream/${encodeURIComponent(active.backendJobId)}`, {method: 'DELETE'}).catch(() => {});
+            }
             if (options.forceClear) {
                 activeGenerations.delete(pairId);
             }
-            updateGenerationControls(pairId);
+            affectedIds.forEach(id => {
+                setGenerationProgress(id, {status: 'stopped', detail: '已请求停止'});
+                updateGenerationControls(id);
+            });
 
             if (!options.silent) {
                 addLog(`停止生成 #${pairId + 1}`, '已发送停止请求');
@@ -4112,6 +4254,7 @@
                         <div class="field-label">对比结果</div>
                         <div class="compare-markdown" id="compare-output-${pair.id}" data-raw-text="">等待对比...</div>
                     </div>
+                    ${renderGenerationProgressBox(pair)}
                 </div>
             `).join('');
             if (typeof lucide !== 'undefined') {
@@ -4281,6 +4424,100 @@
             return data;
         }
 
+        function waitWithSignal(ms, signal) {
+            return new Promise((resolve, reject) => {
+                if (signal?.aborted) {
+                    reject(new DOMException('Aborted', 'AbortError'));
+                    return;
+                }
+                const timer = setTimeout(resolve, ms);
+                signal?.addEventListener('abort', () => {
+                    clearTimeout(timer);
+                    reject(new DOMException('Aborted', 'AbortError'));
+                }, {once: true});
+            });
+        }
+
+        async function startBackendStreamingBatch(items, signal, concurrency = getBatchConcurrency()) {
+            const selectedApi = apiConfigs.find(c => c.selected);
+            if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
+                throw new Error('API配置不完整');
+            }
+            const response = await fetch('/api/generate-batch-stream/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                signal,
+                body: JSON.stringify(await buildApiRequestPayload(selectedApi, {
+                    questionTypes: selectedTypes,
+                    items,
+                    systemPrompt: document.getElementById('systemPrompt').value,
+                    directory: document.getElementById('directory').value,
+                    concurrency
+                }))
+            });
+
+            if (!response.ok) {
+                throw new Error(`请求失败: HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            if (!data.jobId || !Array.isArray(data.results)) {
+                throw new Error('后台任务返回格式不正确');
+            }
+            return data;
+        }
+
+        async function pollBackendStreamingJob(jobId, signal, onProgress) {
+            let latest = null;
+            while (true) {
+                await waitWithSignal(1000, signal);
+                const response = await fetch(`/api/generate-batch-stream/${encodeURIComponent(jobId)}/progress`, {signal});
+                if (!response.ok) {
+                    throw new Error(`进度查询失败: HTTP ${response.status}`);
+                }
+                latest = await response.json();
+                onProgress(latest);
+                if (['done', 'error', 'cancelled'].includes(latest.status)) {
+                    return latest;
+                }
+            }
+        }
+
+        function applyBackendStreamingProgress(data, options = {}) {
+            if (!data || !Array.isArray(data.results)) return;
+            const final = Boolean(options.final);
+
+            data.results.forEach(result => {
+                const pairId = result.id;
+                if (!outputPairs.some(pair => pair.id === pairId)) return;
+
+                setGenerationProgress(pairId, {
+                    status: result.status || 'queued',
+                    charCount: result.charCount || 0,
+                    questionCount: result.questionCount || 0,
+                    error: result.error || null
+                });
+
+                if (result.full) {
+                    updateOutputFull(pairId, result.full, result.status === 'running');
+                } else if (result.status === 'queued') {
+                    updateOutputFull(pairId, '正在后台流式生成中...\n\n等待调度');
+                } else if (result.status === 'running') {
+                    updateOutputFull(pairId, '正在后台流式生成中...\n\n');
+                }
+
+                if (final && ['done', 'error'].includes(result.status)) {
+                    applyGenerationResult(result);
+                } else if (final && result.status === 'cancelled') {
+                    updateOutputFull(pairId, result.full ? `${result.full}\n\n[已取消]` : '已取消');
+                    validateJSON(pairId);
+                }
+            });
+        }
+
         function applyGenerationResult(result) {
             if (!result) return false;
 
@@ -4292,6 +4529,7 @@
             if (result.error) {
                 updateOutputFull(pairId, `❌ 生成失败: ${result.error}`);
                 updateOutputEditable(pairId, '');
+                setGenerationProgress(pairId, {status: 'error', charCount: result.charCount || 0, error: result.error});
                 validateJSON(pairId);
                 addLog(`生成异常 #${pairId + 1}`, result.error);
                 return false;
@@ -4311,11 +4549,16 @@
                     questionCount = 0;
                 }
             }
+            setGenerationProgress(pairId, {
+                status: 'done',
+                charCount: fullText.length,
+                questionCount
+            });
             addLog(`AI生成完成 #${pairId + 1}`, `生成了 ${questionCount} 道题目, 总字符: ${fullText.length}`);
             return true;
         }
 
-        async function generateSingleNonStreaming(pairId, userInput) {
+        async function generateSingleBackendStreaming(pairId, userInput) {
             const selectedApi = apiConfigs.find(c => c.selected);
             if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
                 throw new Error('API配置不完整');
@@ -4327,23 +4570,31 @@
             const controller = new AbortController();
             const runId = nextGenerationRunId++;
             const concurrency = getBatchConcurrency();
-            activeGenerations.set(pairId, {controller, runId, stopping: false});
+            activeGenerations.set(pairId, {controller, runId, stopping: false, backendJobId: null});
             updateGenerationControls(pairId);
 
-            updateOutputFull(pairId, '正在后台生成中...\n\n');
+            updateOutputFull(pairId, '正在后台流式生成中...\n\n');
             updateOutputEditable(pairId, '');
+            setGenerationProgress(pairId, {status: 'queued', detail: '等待后端调度'});
 
-            addLog(`AI生成题目 #${pairId + 1}`, `模型: ${selectedApi.model}, 题型: ${selectedTypes.join(', ')}, 流式: 否, 并发: ${concurrency}`);
+            addLog(`AI生成题目 #${pairId + 1}`, `模型: ${selectedApi.model}, 题型: ${selectedTypes.join(', ')}, 后端流式: 是, 并发: ${concurrency}`);
 
             try {
-                const data = await requestBatchGeneration([{id: pairId, text: userInput}], controller.signal, concurrency);
+                const data = await startBackendStreamingBatch([{id: pairId, text: userInput}], controller.signal, concurrency);
                 const active = activeGenerations.get(pairId);
                 if (!active || active.runId !== runId) {
                     return {aborted: true, superseded: true};
                 }
+                active.backendJobId = data.jobId;
+                applyBackendStreamingProgress(data);
 
-                const result = data.results.find(item => item.id === pairId) || data.results[0];
-                applyGenerationResult(result);
+                const finalData = await pollBackendStreamingJob(data.jobId, controller.signal, latest => {
+                    const current = activeGenerations.get(pairId);
+                    if (!current || current.runId !== runId) return;
+                    applyBackendStreamingProgress(latest);
+                });
+                const result = (finalData.results || []).find(item => item.id === pairId) || finalData.results?.[0];
+                applyBackendStreamingProgress(finalData, {final: true});
                 return {aborted: false, text: result?.full || '', result};
             } catch (e) {
                 if (e.name === 'AbortError') {
@@ -4353,7 +4604,8 @@
                     }
 
                     updateOutputFull(pairId, '已停止');
-                    addLog(`AI生成已停止 #${pairId + 1}`, '非流式请求已取消');
+                    setGenerationProgress(pairId, {status: 'stopped', detail: '已停止'});
+                    addLog(`AI生成已停止 #${pairId + 1}`, '后台流式任务已取消');
                     return {aborted: true};
                 }
                 throw e;
@@ -4367,9 +4619,9 @@
             const idx = inputPairs.findIndex(p => p.id === pairId);
             if (idx === -1) return;
 
-            const isStreaming = document.getElementById('streamToggle').checked;
-            if (!isStreaming) {
-                return await generateSingleNonStreaming(pairId, userInput);
+            const showFrontendStream = document.getElementById('streamToggle').checked;
+            if (!showFrontendStream) {
+                return await generateSingleBackendStreaming(pairId, userInput);
             }
 
             if (isPairGenerating(pairId)) {
@@ -4387,7 +4639,8 @@
             const systemPrompt = document.getElementById('systemPrompt').value;
             let fullText = '';
 
-            addLog(`AI生成题目 #${pairId + 1}`, `模型: ${selectedApi.model}, 题型: ${selectedTypes.join(', ')}, 流式: ${isStreaming ? '是' : '否'}`);
+            setGenerationProgress(pairId, {status: 'running', detail: '前端接收中'});
+            addLog(`AI生成题目 #${pairId + 1}`, `模型: ${selectedApi.model}, 题型: ${selectedTypes.join(', ')}, 前端显示流式: 是`);
 
             try {
                 const response = await fetch('/api/generate', {
@@ -4428,16 +4681,11 @@
                                 throw new Error(data.error);
                             } else if (data.text) {
                                 fullText += data.text;
-                                if (isStreaming) {
-                                    updateOutputFull(pairId, fullText, true);
-                                }
+                                setGenerationProgress(pairId, {status: 'running', charCount: fullText.length});
+                                updateOutputFull(pairId, fullText, true);
                             }
                         }
                     }
-                }
-
-                if (!isStreaming) {
-                    updateOutputFull(pairId, fullText);
                 }
 
                 const extractedJsonContent = extractJSON(fullText);
@@ -4451,6 +4699,7 @@
                 if (extractedJsonContent) {
                     finalQuestionCount = (JSON.parse(extractedJsonContent).questions || []).length;
                 }
+                setGenerationProgress(pairId, {status: 'done', charCount: fullText.length, questionCount: finalQuestionCount});
                 addLog(`AI生成完成 #${pairId + 1}`, `生成了 ${finalQuestionCount} 道题目, 总字符: ${fullText.length}`);
                 return {aborted: false, text: fullText};
             } catch (e) {
@@ -4462,6 +4711,7 @@
 
                     const stoppedText = fullText ? `${fullText}\n\n[已停止]` : '已停止';
                     updateOutputFull(pairId, stoppedText, true);
+                    setGenerationProgress(pairId, {status: 'stopped', charCount: fullText.length, detail: '已停止'});
                     addLog(`AI生成已停止 #${pairId + 1}`, `已保留 ${fullText.length} 个字符`);
                     return {aborted: true};
                 }
@@ -4510,35 +4760,59 @@
             }
         }
 
-        async function generateQuestionsNonStreamingBatch(validInputCount, exportBtn) {
+        async function generateQuestionsBackendStreamingBatch(validInputCount, exportBtn) {
             const error = document.getElementById('error');
             const items = inputPairs
                 .filter(pair => pair.text.trim())
                 .map(pair => ({id: pair.id, text: pair.text}));
             const concurrency = getBatchConcurrency();
+            const controller = new AbortController();
+            const runId = nextGenerationRunId++;
 
             batchGenerating = true;
+            items.forEach(item => {
+                activeGenerations.set(item.id, {controller, runId, stopping: false, backendJobId: null});
+            });
             updateGlobalGenerationControls();
             inputPairs.forEach(pair => updateGenerationControls(pair.id));
 
             items.forEach(item => {
-                updateOutputFull(item.id, '正在后台批量生成中...\n\n');
+                updateOutputFull(item.id, '正在后台流式批量生成中...\n\n');
                 updateOutputEditable(item.id, '');
+                setGenerationProgress(item.id, {status: 'queued', detail: '等待后端调度'});
                 validateJSON(item.id);
             });
 
-            addLog('开始后台批量生成', `共 ${validInputCount} 个输入, 并发: ${concurrency}, 题型: ${selectedTypes.join(', ')}`);
+            addLog('开始后台流式批量生成', `共 ${validInputCount} 个输入, 并发: ${concurrency}, 题型: ${selectedTypes.join(', ')}`);
 
             try {
-                const data = await requestBatchGeneration(items, undefined, concurrency);
-                data.results.forEach(result => applyGenerationResult(result));
-                addLog('后台批量生成完成', `成功 ${data.successCount} 个，失败 ${data.failedCount} 个`);
+                const data = await startBackendStreamingBatch(items, controller.signal, concurrency);
+                items.forEach(item => {
+                    const active = activeGenerations.get(item.id);
+                    if (active && active.runId === runId) {
+                        active.backendJobId = data.jobId;
+                    }
+                });
+                applyBackendStreamingProgress(data);
+
+                const finalData = await pollBackendStreamingJob(data.jobId, controller.signal, applyBackendStreamingProgress);
+                applyBackendStreamingProgress(finalData, {final: true});
+                if (finalData.status === 'cancelled') {
+                    addLog('后台流式批量生成已取消', `已处理 ${finalData.completedCount || 0}/${finalData.total || validInputCount} 个输入`);
+                } else {
+                    addLog('后台流式批量生成完成', `成功 ${finalData.successCount} 个，失败 ${finalData.failedCount} 个`);
+                }
             } catch (e) {
+                if (e.name === 'AbortError') {
+                    addLog('后台流式批量生成已停止', '轮询请求已取消');
+                    return;
+                }
                 error.textContent = `❌ 批量生成失败: ${e.message}`;
                 error.style.display = 'block';
-                addLog('后台批量生成异常', e.message);
+                addLog('后台流式批量生成异常', e.message);
             } finally {
                 batchGenerating = false;
+                items.forEach(item => clearActiveGeneration(item.id, runId));
                 inputPairs.forEach(pair => updateGenerationControls(pair.id));
                 updateGlobalGenerationControls();
                 if (activeGenerations.size === 0 && hasGeneratedOutput()) {
@@ -4581,7 +4855,7 @@
 
             const validInputCount = inputPairs.filter(p => p.text.trim()).length;
             if (!document.getElementById('streamToggle').checked) {
-                await generateQuestionsNonStreamingBatch(validInputCount, exportBtn);
+                await generateQuestionsBackendStreamingBatch(validInputCount, exportBtn);
                 return;
             }
 

@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field
+import asyncio
 import os
 import time
 import json
 import base64
+import uuid
 from cryptography.hazmat.primitives.asymmetric import padding
 from utils import get_or_create_key, get_or_create_transport_private_key, get_transport_public_key_pem
 from ai_service import generate_questions_stream, generate_questions_batch, extract_directory, generate_filename, compare_files_stream, compare_chat_stream, test_api_connection
@@ -15,6 +17,8 @@ from logger import log_api_call
 from header_utils import get_question_type
 
 app = FastAPI()
+BATCH_STREAM_JOBS = {}
+BATCH_STREAM_JOB_TTL_SECONDS = 3600
 
 
 @app.middleware("http")
@@ -96,6 +100,155 @@ def mask_api_request(req):
         if field in data:
             data[field] = '***'
     return data
+
+
+def now_ts():
+    return time.time()
+
+
+def new_batch_stream_item_state(item):
+    return {
+        "id": item.get("id"),
+        "text": item.get("text", ""),
+        "status": "queued",
+        "full": "",
+        "editable": "",
+        "questionCount": 0,
+        "charCount": 0,
+        "error": None,
+        "updatedAt": now_ts()
+    }
+
+
+def summarize_batch_stream_job(job):
+    results = list(job["results"].values())
+    success_count = len([item for item in results if item.get("status") == "done" and not item.get("error")])
+    failed_count = len([item for item in results if item.get("status") in ("error", "cancelled") or item.get("error")])
+    completed_count = len([item for item in results if item.get("status") in ("done", "error", "cancelled")])
+    return {
+        "jobId": job["id"],
+        "status": job["status"],
+        "total": len(results),
+        "completedCount": completed_count,
+        "successCount": success_count,
+        "failedCount": failed_count,
+        "createdAt": job["createdAt"],
+        "updatedAt": job["updatedAt"],
+        "results": results
+    }
+
+
+def cleanup_batch_stream_jobs():
+    cutoff = now_ts() - BATCH_STREAM_JOB_TTL_SECONDS
+    stale_job_ids = [
+        job_id for job_id, job in BATCH_STREAM_JOBS.items()
+        if job.get("status") in ("done", "error", "cancelled") and job.get("updatedAt", 0) < cutoff
+    ]
+    for job_id in stale_job_ids:
+        BATCH_STREAM_JOBS.pop(job_id, None)
+
+
+def parse_stream_chunk_text(chunk):
+    if not chunk.startswith("data: "):
+        return None
+    try:
+        data = json.loads(chunk[6:].strip())
+    except Exception:
+        return None
+    if data.get("error"):
+        raise RuntimeError(data["error"])
+    return data.get("text")
+
+
+async def run_batch_stream_job(job_id, api_url, api_key, model, question_types, items, system_prompt, directory, concurrency):
+    job = BATCH_STREAM_JOBS[job_id]
+    try:
+        concurrency = int(concurrency)
+    except Exception:
+        concurrency = 20
+    concurrency = max(1, concurrency)
+    semaphore = asyncio.Semaphore(concurrency)
+    job["status"] = "running"
+    job["updatedAt"] = now_ts()
+
+    async def generate_one(item):
+        item_id = item.get("id")
+        state = job["results"][item_id]
+        user_input = (item.get("text") or "").strip()
+        if not user_input:
+            state.update({
+                "status": "error",
+                "error": "输入内容为空",
+                "updatedAt": now_ts()
+            })
+            return
+
+        async with semaphore:
+            if job["cancelEvent"].is_set():
+                state.update({"status": "cancelled", "error": "已取消", "updatedAt": now_ts()})
+                return
+
+            state.update({"status": "running", "updatedAt": now_ts()})
+            try:
+                async for chunk in generate_questions_stream(
+                    api_url,
+                    api_key,
+                    model,
+                    question_types,
+                    user_input,
+                    system_prompt,
+                    directory
+                ):
+                    if job["cancelEvent"].is_set():
+                        state.update({"status": "cancelled", "error": "已取消", "updatedAt": now_ts()})
+                        return
+
+                    text = parse_stream_chunk_text(chunk)
+                    if text:
+                        state["full"] += text
+                        state["charCount"] = len(state["full"])
+                        state["updatedAt"] = now_ts()
+
+                editable = ""
+                question_count = 0
+                if state["full"]:
+                    from ai_service import extract_json_content
+                    editable = extract_json_content(state["full"])
+                    if editable:
+                        try:
+                            question_count = len(json.loads(editable).get("questions", []))
+                        except Exception:
+                            question_count = 0
+                state.update({
+                    "status": "done",
+                    "editable": editable,
+                    "questionCount": question_count,
+                    "charCount": len(state["full"]),
+                    "updatedAt": now_ts()
+                })
+            except asyncio.CancelledError:
+                state.update({"status": "cancelled", "error": "已取消", "updatedAt": now_ts()})
+                raise
+            except Exception as e:
+                state.update({
+                    "status": "error",
+                    "error": str(e),
+                    "updatedAt": now_ts()
+                })
+
+    try:
+        await asyncio.gather(*(generate_one(item) for item in items))
+        job["status"] = "cancelled" if job["cancelEvent"].is_set() else "done"
+    except asyncio.CancelledError:
+        job["status"] = "cancelled"
+        for state in job["results"].values():
+            if state.get("status") in ("queued", "running"):
+                state.update({"status": "cancelled", "error": "已取消", "updatedAt": now_ts()})
+    except Exception as e:
+        job["status"] = "error"
+        job["error"] = str(e)
+    finally:
+        job["updatedAt"] = now_ts()
 
 
 class GenerateRequest(BaseModel):
@@ -281,6 +434,66 @@ async def generate_questions_batch_endpoint(req: GenerateBatchRequest):
         return {"error": str(e)}
 
 
+@app.post("/api/generate-batch-stream/start")
+async def start_generate_questions_batch_stream(req: GenerateBatchRequest):
+    cleanup_batch_stream_jobs()
+    try:
+        api_url, api_key = resolve_api_credentials(req)
+        items = [item.dict() for item in req.items]
+        job_id = uuid.uuid4().hex
+        created_at = now_ts()
+        job = {
+            "id": job_id,
+            "status": "queued",
+            "createdAt": created_at,
+            "updatedAt": created_at,
+            "results": {item.get("id"): new_batch_stream_item_state(item) for item in items},
+            "cancelEvent": asyncio.Event(),
+            "task": None,
+            "error": None
+        }
+        BATCH_STREAM_JOBS[job_id] = job
+        job["task"] = asyncio.create_task(run_batch_stream_job(
+            job_id,
+            api_url,
+            api_key,
+            req.model,
+            req.questionTypes,
+            items,
+            req.systemPrompt,
+            req.directory,
+            req.concurrency
+        ))
+        return summarize_batch_stream_job(job)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/generate-batch-stream/{job_id}/progress")
+async def get_generate_questions_batch_stream_progress(job_id: str):
+    job = BATCH_STREAM_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="生成任务不存在或已过期")
+    return summarize_batch_stream_job(job)
+
+
+@app.delete("/api/generate-batch-stream/{job_id}")
+async def cancel_generate_questions_batch_stream(job_id: str):
+    job = BATCH_STREAM_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="生成任务不存在或已过期")
+    job["cancelEvent"].set()
+    job["status"] = "cancelled"
+    job["updatedAt"] = now_ts()
+    task = job.get("task")
+    if task and not task.done():
+        task.cancel()
+    for state in job["results"].values():
+        if state.get("status") in ("queued", "running"):
+            state.update({"status": "cancelled", "error": "已取消", "updatedAt": now_ts()})
+    return summarize_batch_stream_job(job)
+
+
 @app.post("/api/export")
 async def export_excel(req: ExportRequest):
     excel_path, json_path = export_to_excel(req.questions)
@@ -364,8 +577,8 @@ if __name__ == '__main__':
 
     if '--http2' in sys.argv:
         print("启动 HTTP/2 服务器（支持无限并发连接）...")
-        import os
-        os.system('hypercorn app:app --bind 0.0.0.0:8111')
+        import subprocess
+        sys.exit(subprocess.call([sys.executable, '-m', 'hypercorn', 'app:app', '--bind', '0.0.0.0:8111']))
     else:
         print("启动 HTTP/1.1 服务器（最多 6 个并发连接）...")
         print("提示：使用 'python app.py --http2' 启用 HTTP/2 支持")
