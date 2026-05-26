@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import asyncio
 import os
@@ -11,7 +12,7 @@ import base64
 import uuid
 from cryptography.hazmat.primitives.asymmetric import padding
 from utils import get_or_create_key, get_or_create_transport_private_key, get_transport_public_key_pem
-from ai_service import generate_questions_stream, generate_questions_batch, extract_directory, generate_filename, compare_files_stream, compare_chat_stream, test_api_connection
+from ai_service import generate_questions_stream, extract_directory, generate_filename, match_question_types, compare_files_stream, compare_chat_stream, test_api_connection
 from excel_service import export_to_excel
 from logger import log_api_call
 from header_utils import get_question_type
@@ -19,6 +20,7 @@ from header_utils import get_question_type
 app = FastAPI()
 BATCH_STREAM_JOBS = {}
 BATCH_STREAM_JOB_TTL_SECONDS = 3600
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.middleware("http")
@@ -251,16 +253,6 @@ async def run_batch_stream_job(job_id, api_url, api_key, model, question_types, 
         job["updatedAt"] = now_ts()
 
 
-class GenerateRequest(BaseModel):
-    apiUrl: str
-    apiKey: str
-    model: str
-    questionTypes: list
-    userInput: str
-    systemPrompt: str = ""
-    directory: str = ""
-
-
 class GenerateBatchItem(BaseModel):
     id: int
     text: str
@@ -286,6 +278,11 @@ class AIRequest(BaseModel):
     apiKey: str
     model: str
     content: str
+    prompt: str = ""
+
+
+class MatchQuestionTypesRequest(AIRequest):
+    questionTypes: list
 
 
 class CompareRequest(BaseModel):
@@ -294,6 +291,7 @@ class CompareRequest(BaseModel):
     model: str
     fileA: str
     fileB: str
+    prompt: str = ""
 
 
 class CompareChatRequest(BaseModel):
@@ -304,6 +302,7 @@ class CompareChatRequest(BaseModel):
     question: str
     fileA: str = ""
     fileB: str = ""
+    prompt: str = ""
     history: list = Field(default_factory=list)
 
 
@@ -317,7 +316,7 @@ async def handle_ai_request(ai_func, req: AIRequest, result_key: str, error_msg:
     """通用 AI 请求处理函数"""
     try:
         api_url, api_key = resolve_api_credentials(req)
-        result = await ai_func(api_url, api_key, req.model, req.content)
+        result = await ai_func(api_url, api_key, req.model, req.content, req.prompt)
         # print(result)
         log_api_call(
             method="POST",
@@ -396,44 +395,6 @@ async def get_question_types():
         return {"error": str(e), "questionTypes": [], "sampleData": {}, "noticeTip": None}
 
 
-@app.post("/api/generate")
-async def generate_questions(req: GenerateRequest):
-    async def generate():
-        try:
-            api_url, api_key = resolve_api_credentials(req)
-            async for chunk in generate_questions_stream(api_url, api_key, req.model, req.questionTypes, req.userInput, req.systemPrompt, req.directory):
-                yield chunk
-        except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
-
-    return StreamingResponse(generate(), media_type="text/event-stream")
-
-
-@app.post("/api/generate-batch")
-async def generate_questions_batch_endpoint(req: GenerateBatchRequest):
-    try:
-        api_url, api_key = resolve_api_credentials(req)
-        results = await generate_questions_batch(
-            api_url,
-            api_key,
-            req.model,
-            req.questionTypes,
-            [item.dict() for item in req.items],
-            req.systemPrompt,
-            req.directory,
-            req.concurrency
-        )
-        success_count = len([result for result in results if not result.get('error')])
-        return {
-            "results": results,
-            "total": len(results),
-            "successCount": success_count,
-            "failedCount": len(results) - success_count
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
-
 @app.post("/api/generate-batch-stream/start")
 async def start_generate_questions_batch_stream(req: GenerateBatchRequest):
     cleanup_batch_stream_jobs()
@@ -494,6 +455,25 @@ async def cancel_generate_questions_batch_stream(job_id: str):
     return summarize_batch_stream_job(job)
 
 
+@app.delete("/api/generate-batch-stream")
+async def cancel_all_generate_questions_batch_stream():
+    cancelled = []
+    for job_id, job in list(BATCH_STREAM_JOBS.items()):
+        if job.get("status") in ("done", "error", "cancelled"):
+            continue
+        job["cancelEvent"].set()
+        job["status"] = "cancelled"
+        job["updatedAt"] = now_ts()
+        task = job.get("task")
+        if task and not task.done():
+            task.cancel()
+        for state in job["results"].values():
+            if state.get("status") in ("queued", "running"):
+                state.update({"status": "cancelled", "error": "已取消", "updatedAt": now_ts()})
+        cancelled.append(job_id)
+    return {"cancelled": cancelled, "count": len(cancelled)}
+
+
 @app.post("/api/export")
 async def export_excel(req: ExportRequest):
     excel_path, json_path = export_to_excel(req.questions)
@@ -514,6 +494,16 @@ async def generate_filename_endpoint(req: AIRequest):
     return await handle_ai_request(generate_filename, req, "filename", "无法生成文件名")
 
 
+@app.post("/api/match-question-types")
+async def match_question_types_endpoint(req: MatchQuestionTypesRequest):
+    try:
+        api_url, api_key = resolve_api_credentials(req)
+        matched = await match_question_types(api_url, api_key, req.model, req.content, req.questionTypes, req.prompt)
+        return {"questionTypes": matched}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.post("/api/test-api")
 async def test_api_endpoint(req: TestApiRequest):
     try:
@@ -529,7 +519,7 @@ async def compare_files(req: CompareRequest):
     async def generate():
         try:
             api_url, api_key = resolve_api_credentials(req)
-            async for chunk in compare_files_stream(api_url, api_key, req.model, req.fileA, req.fileB):
+            async for chunk in compare_files_stream(api_url, api_key, req.model, req.fileA, req.fileB, req.prompt):
                 yield chunk
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -550,7 +540,8 @@ async def compare_chat(req: CompareChatRequest):
                 req.question,
                 req.fileA,
                 req.fileB,
-                req.history
+                req.history,
+                req.prompt
             ):
                 yield chunk
         except Exception as e:

@@ -163,16 +163,45 @@ async def generate_questions_batch(api_url, api_key, model, question_types, item
     return await asyncio.gather(*(generate_one(item) for item in items))
 
 
-async def extract_directory(api_url, api_key, model, content):
+async def extract_directory(api_url, api_key, model, content, prompt_override=''):
     """使用 AI 提取目录结构"""
+    system_prompt = prompt_override or DIRECTORY_EXTRACTION_PROMPT
     user_prompt = f'请根据以下内容提取或生成目录结构：\n\n{content}\n\n请直接输出目录结构，不要有其他说明文字。'
-    return await call_ai_api(api_url, api_key, model, DIRECTORY_EXTRACTION_PROMPT, user_prompt)
+    return await call_ai_api(api_url, api_key, model, system_prompt, user_prompt)
 
 
-async def generate_filename(api_url, api_key, model, content):
+async def generate_filename(api_url, api_key, model, content, prompt_override=''):
     """使用 AI 生成文件名"""
+    system_prompt = prompt_override or FILENAME_GENERATION_PROMPT
     user_prompt = f'请根据以下内容生成一个合适的文件名：\n\n{content}\n\n请直接输出文件名，不要有其他说明文字，不要包含扩展名。'
-    return await call_ai_api(api_url, api_key, model, FILENAME_GENERATION_PROMPT, user_prompt)
+    return await call_ai_api(api_url, api_key, model, system_prompt, user_prompt)
+
+
+async def match_question_types(api_url, api_key, model, content, available_types, prompt_override=''):
+    """使用 AI 从候选题型中匹配合适的题型"""
+    system_prompt = prompt_override or (
+        "你是一个题库需求分类助手。请只从候选题型中选择最适合用户需求的题型。"
+        "必须直接输出 JSON，格式为 {\"questionTypes\": [\"题型1\"]}，不要输出其他文字。"
+    )
+    type_text = json.dumps(available_types, ensure_ascii=False)
+    user_prompt = (
+        f"候选题型：{type_text}\n\n"
+        f"用户需求：\n{content}\n\n"
+        "请返回一个或多个最匹配的候选题型。"
+    )
+    result = await call_ai_api(api_url, api_key, model, system_prompt, user_prompt, timeout=120.0)
+    if not result:
+        return []
+
+    json_text = extract_json_content(result) or result
+    try:
+        data = json.loads(json_text)
+        matched = data.get("questionTypes", [])
+        if isinstance(matched, str):
+            matched = [matched]
+        return [item for item in matched if item in available_types]
+    except Exception:
+        return [item for item in available_types if item in result]
 
 
 async def test_api_connection(api_url, api_key, model):
@@ -188,10 +217,11 @@ async def test_api_connection(api_url, api_key, model):
     )
 
 
-async def compare_files_stream(api_url, api_key, model, file_a, file_b):
+async def compare_files_stream(api_url, api_key, model, file_a, file_b, prompt_override=''):
     """流式对比两份文件"""
     model = model.strip()
-    prompt = COMPARE_PROMPT.replace('{file_a}', file_a).replace('{file_b}', file_b)
+    prompt_template = prompt_override or COMPARE_PROMPT
+    prompt = prompt_template.replace('{file_a}', file_a).replace('{file_b}', file_b)
 
     async with httpx.AsyncClient(timeout=300.0) as client:
         async with client.stream(
@@ -215,11 +245,11 @@ async def compare_files_stream(api_url, api_key, model, file_a, file_b):
                         pass
 
 
-async def compare_chat_stream(api_url, api_key, model, compare_result, question, file_a='', file_b='', history=None):
+async def compare_chat_stream(api_url, api_key, model, compare_result, question, file_a='', file_b='', history=None, prompt_override=''):
     """基于对比结果进行流式追问"""
     model = model.strip()
     history = history or []
-    system_prompt = (
+    system_prompt = prompt_override or (
         "你是一个专业的题库审核助手。请基于已有 AB 对比结果、生成题目和原始需求回答用户追问。"
         "回答必须使用 Markdown，结论明确，必要时给出可执行的修改建议。"
         "如果上下文不足，请直接说明缺少哪些信息，不要编造。"
