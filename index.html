@@ -61,6 +61,45 @@
             <input type="file" id="apiImportFile" accept=".json,application/json" style="display: none;" onchange="handleApiConfigImport(event)">
         </div>
 
+        <div class="section template-convert-section" data-section-key="templateConvert">
+            <div class="section-header-row">
+                <div class="section-title" style="margin: 0;">
+                    <i data-lucide="repeat-2"></i>
+                    模板互转
+                </div>
+                <button class="small" onclick="importTemplateSource()">
+                    <i data-lucide="upload"></i>
+                    导入文件
+                </button>
+            </div>
+            <input type="file" id="templateImportFile" accept=".json,.xlsx,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display: none;" onchange="handleTemplateImport(event)">
+            <div class="template-convert-toolbar">
+                <label class="compact-field">
+                    <span style="font-size: 13px; font-weight: 700; color: var(--text-secondary);">目标模板</span>
+                    <select id="convertTargetTemplate">
+                        <option value="standard">标准题库 JSON</option>
+                        <option value="answer_helper">答题帮手 JSON</option>
+                    </select>
+                </label>
+                <button class="small" onclick="convertTemplateJSON()">
+                    <i data-lucide="repeat-2"></i>
+                    转换
+                </button>
+            </div>
+            <div class="field-label" style="margin-top: 12px;">导入/转换后的 JSON</div>
+            <textarea id="templateConvertOutput" placeholder="导入从本系统导出的 JSON 或 Excel 后，会转换为可再次导出的 JSON 结构。"></textarea>
+            <div class="type-picker-actions" style="margin-top: 10px;">
+                <button class="small" onclick="applyTemplateConvertToFileA()">
+                    <i data-lucide="file-symlink"></i>
+                    应用到文件 A
+                </button>
+                <button class="small" onclick="exportTemplateConvertJSON()">
+                    <i data-lucide="download"></i>
+                    导出 JSON
+                </button>
+            </div>
+        </div>
+
         <div class="section filename-section" data-section-key="filename">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <div class="section-title" style="margin: 0;">
@@ -267,6 +306,10 @@
                     <i data-lucide="message-square-text"></i>
                     对比提示词
                 </button>
+                <button class="small" onclick="openPromptEditor('compareScore')">
+                    <i data-lucide="chart-no-axes-column"></i>
+                    评分提示词
+                </button>
             </div>
             <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 20px;">
                 <button class="small" onclick="toggleRemoveNull()">
@@ -284,6 +327,40 @@
                         <i data-lucide="file-check" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
                         文件 A（生成的题目） <span id="file-a-q-count" style="color: var(--primary);"></span>
                     </div>
+                    <div class="file-a-sort-toolbar">
+                        <label>
+                            <span>第一优先级</span>
+                            <select id="fileASortPrimary">
+                                <option value="chapter">章节</option>
+                                <option value="type">题型</option>
+                                <option value="none">不排序</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>第二优先级</span>
+                            <select id="fileASortSecondary">
+                                <option value="type">题型</option>
+                                <option value="chapter">章节</option>
+                                <option value="none">不排序</option>
+                            </select>
+                        </label>
+                        <button class="small" onclick="sortFileABy('chapter')">
+                            <i data-lucide="folder-tree"></i>
+                            按章节
+                        </button>
+                        <button class="small" onclick="sortFileABy('type')">
+                            <i data-lucide="list-filter"></i>
+                            按题型
+                        </button>
+                        <button class="small" onclick="swapFileASortPriority()">
+                            <i data-lucide="arrow-up-down"></i>
+                            交换
+                        </button>
+                        <button class="small" onclick="sortFileA()">
+                            <i data-lucide="arrow-down-up"></i>
+                            应用排序
+                        </button>
+                    </div>
                     <textarea id="fileA" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..."></textarea>
                 </div>
                 <div>
@@ -294,24 +371,31 @@
                     <textarea id="fileB" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..."></textarea>
                 </div>
             </div>
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
                 <button class="small" onclick="generateFileA()">生成文件 A</button>
                 <button class="small" onclick="generateFileB()">生成文件 B</button>
                 <button id="compareBtn" onclick="compareFiles()" disabled>
                     <i data-lucide="search"></i>
-                    AI 对比分析
-                </button>
-                <button class="small" onclick="compareAllSingle()">
-                    <i data-lucide="zap"></i>
-                    一键全部审核
+                    同步生成对比结果
                 </button>
             </div>
             <div>
-                <div class="field-label">
-                    <i data-lucide="bar-chart-3" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
-                    对比结果
+                <div class="compare-results-grid">
+                    <div>
+                        <div class="field-label">
+                            <i data-lucide="bar-chart-3" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
+                            结构化评分
+                        </div>
+                        <div class="compare-markdown" id="compareScoreResult" data-raw-text="">等待对比...</div>
+                    </div>
+                    <div>
+                        <div class="field-label">
+                            <i data-lucide="file-search" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
+                            对比测评评分
+                        </div>
+                        <div class="compare-markdown" id="compareResult" data-raw-text="">等待对比...</div>
+                    </div>
                 </div>
-                <div class="compare-markdown" id="compareResult" data-raw-text="">等待对比...</div>
                 <div class="compare-chat-panel">
                     <div class="compare-chat-header">
                         <div class="field-label" style="margin: 0;">
@@ -342,10 +426,35 @@
         </div>
 
         <div class="actions" data-section-key="export">
-            <button id="exportBtn" onclick="exportExcel()" disabled>
-                <i data-lucide="download"></i>
-                导出 Excel
-            </button>
+            <div class="export-source-line">
+                <i data-lucide="database"></i>
+                数据来源：AB 对比审核内的文件 A
+            </div>
+            <div class="export-button-row">
+                <label class="export-template-picker">
+                    <span style="font-size: 13px; font-weight: 700; color: var(--text-secondary);">Excel 模板</span>
+                    <select id="excelTemplate">
+                        <option value="standard">标准题库模板</option>
+                        <option value="answer_helper">答题帮手模板</option>
+                    </select>
+                </label>
+                <button id="exportBtn" onclick="exportExcel()" disabled>
+                    <i data-lucide="download"></i>
+                    导出 Excel
+                </button>
+                <button id="exportWordBtn" onclick="exportWord()" disabled>
+                    <i data-lucide="file-text"></i>
+                    导出 Word
+                </button>
+                <button id="exportJsonBtn" onclick="exportJSON()" disabled>
+                    <i data-lucide="braces"></i>
+                    导出 JSON
+                </button>
+                <button id="exportConvertBtn" onclick="convertTemplateJSON()" disabled>
+                    <i data-lucide="repeat-2"></i>
+                    转换模板
+                </button>
+            </div>
         </div>
             </div>
         </div>

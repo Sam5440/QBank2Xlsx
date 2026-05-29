@@ -217,18 +217,62 @@ async def test_api_connection(api_url, api_key, model):
     )
 
 
-async def compare_files_stream(api_url, api_key, model, file_a, file_b, prompt_override=''):
+STRUCTURED_COMPARE_PROMPT = """你是一个严格的题库质量评分助手。请先阅读原始需求，再检查生成题目。
+
+请只输出 Markdown，包含以下结构：
+## 结构化评分
+| 维度 | 分数(0-10) | 问题数 | 说明 |
+| --- | ---: | ---: | --- |
+| 数量完整性 |  |  |  |
+| 题型匹配 |  |  |  |
+| 内容一致性 |  |  |  |
+| 答案正确性 |  |  |  |
+| 解析质量 |  |  |  |
+| JSON/字段规范 |  |  |  |
+
+## 总分
+给出 0-100 分，并说明扣分原因。
+
+## 必改清单
+按严重程度列出必须修复的问题。"""
+
+
+def build_compare_messages(file_a, file_b, prompt_override='', mode='review', use_context_cache=False):
+    if mode == 'score':
+        prompt_template = prompt_override or STRUCTURED_COMPARE_PROMPT
+    else:
+        prompt_template = prompt_override or COMPARE_PROMPT
+
+    if '{file_a}' in prompt_template or '{file_b}' in prompt_template:
+        if use_context_cache:
+            content = prompt_template.replace('{file_a}', file_a).replace('{file_b}', '见上一条消息中的原文件 / 原始需求。')
+            return [
+                {'role': 'system', 'content': '你是一个专业的题库审核助手，必须基于原始需求检查生成题目，不要编造缺失信息。'},
+                {'role': 'user', 'content': f'请缓存并优先使用以下原文件 / 原始需求：\n\n{file_b}'},
+                {'role': 'user', 'content': content}
+            ]
+        content = prompt_template.replace('{file_a}', file_a).replace('{file_b}', file_b)
+        return [{'role': 'user', 'content': content}]
+
+    cache_note = "已启用原文件优先上下文缓存：请把下面的原始需求视为稳定上下文。" if use_context_cache else "请先阅读原始需求，再阅读生成题目。"
+    return [
+        {'role': 'system', 'content': '你是一个专业的题库审核助手，必须基于原始需求检查生成题目，不要编造缺失信息。'},
+        {'role': 'user', 'content': f'{cache_note}\n\n## 原文件 / 原始需求\n{file_b}'},
+        {'role': 'user', 'content': f'## 生成文件 / 文件 A\n{file_a}\n\n{prompt_template}'}
+    ]
+
+
+async def compare_files_stream(api_url, api_key, model, file_a, file_b, prompt_override='', mode='review', use_context_cache=False):
     """流式对比两份文件"""
     model = model.strip()
-    prompt_template = prompt_override or COMPARE_PROMPT
-    prompt = prompt_template.replace('{file_a}', file_a).replace('{file_b}', file_b)
+    messages = build_compare_messages(file_a, file_b, prompt_override, mode, use_context_cache)
 
     async with httpx.AsyncClient(timeout=300.0) as client:
         async with client.stream(
             'POST',
             f"{api_url}/chat/completions",
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-            json={'model': model, 'messages': [{'role': 'user', 'content': prompt}], 'stream': True}
+            json={'model': model, 'messages': messages, 'stream': True}
         ) as response:
             async for line in response.aiter_lines():
                 if line.startswith('data: '):

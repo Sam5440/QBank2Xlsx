@@ -37,11 +37,11 @@
             typeMatch: '你是一个题库需求分类助手。请只从候选题型中选择最适合用户需求的题型。必须直接输出 JSON，格式为 {\"questionTypes\": [\"题型1\"]}，不要输出其他文字。',
             compare: `你是一个专业的题库审核助手。请对比以下两份内容：
 
-**文件 A（生成的题目）：**
-{file_a}
-
 **文件 B（原始需求）：**
 {file_b}
+
+**文件 A（生成的题目）：**
+{file_a}
 
 请从以下方面进行对比分析：
 1. 题目数量是否符合需求，是否存在缺漏等
@@ -53,6 +53,24 @@
 ## 需要修改的内容
 ## 修改建议
 尽量使用列表和小标题，便于直接阅读。`,
+            compareScore: `你是一个严格的题库质量评分助手。请先阅读原始需求，再检查生成题目。
+
+请输出 Markdown，并使用以下结构：
+## 结构化评分
+| 维度 | 分数(0-10) | 问题数 | 说明 |
+| --- | ---: | ---: | --- |
+| 数量完整性 |  |  |  |
+| 题型匹配 |  |  |  |
+| 内容一致性 |  |  |  |
+| 答案正确性 |  |  |  |
+| 解析质量 |  |  |  |
+| JSON/字段规范 |  |  |  |
+
+## 总分
+给出 0-100 分，并说明扣分原因。
+
+## 必改清单
+按严重程度列出必须修复的问题。`,
             compareChat: '你是一个专业的题库审核助手。请基于已有 AB 对比结果、生成题目和原始需求回答用户追问。回答必须使用 Markdown，结论明确，必要时给出可执行的修改建议。如果上下文不足，请直接说明缺少哪些信息，不要编造。'
         };
         const PROMPT_LABELS = {
@@ -61,9 +79,11 @@
             directory: '目录提取提示词',
             typeMatch: 'AI 匹配题型提示词',
             compare: 'AB 对比审核提示词',
+            compareScore: '结构化评分提示词',
             compareChat: '对比追问提示词'
         };
         let compareContext = {
+            structuredResult: '',
             compareResult: '',
             fileA: '',
             fileB: ''
@@ -80,6 +100,7 @@
             {key: 'generation', label: '生成题目'},
             {key: 'requirements', label: '输入题目需求'},
             {key: 'results', label: 'AI 生成结果'},
+            {key: 'templateConvert', label: '模板互转'},
             {key: 'compare', label: 'AB 对比审核'},
             {key: 'export', label: '导出 Excel'}
         ];
@@ -728,6 +749,7 @@
                 url: String(config.url || ''),
                 key: String(config.key || ''),
                 model: String(config.model || ''),
+                useContextCache: Boolean(config.useContextCache),
                 selected: Boolean(config.selected)
             };
         }
@@ -779,6 +801,10 @@
                     <input id="api-url-${idx}" name="apiUrl${idx}" type="text" placeholder="API URL" value="${escapeHTML(config.url)}" autocomplete="url" onchange="updateConfig(${idx}, 'url', this.value)">
                     <input id="api-key-${idx}" name="apiKey${idx}" type="password" placeholder="API Key" value="${escapeHTML(config.key)}" autocomplete="off" onchange="updateConfig(${idx}, 'key', this.value)">
                     <input id="api-model-${idx}" name="apiModel${idx}" type="text" placeholder="Model" value="${escapeHTML(config.model)}" autocomplete="off" onchange="updateConfig(${idx}, 'model', this.value)">
+                    <label class="api-cache-toggle" title="对比时把原文件放在消息前部，便于兼容支持前缀缓存的模型服务">
+                        <input type="checkbox" ${config.useContextCache ? 'checked' : ''} onchange="updateConfig(${idx}, 'useContextCache', this.checked)">
+                        <span>创建缓存</span>
+                    </label>
                     <div class="action-btns">
                         <button class="small" onclick="testApiConfig(${idx})">
                             <i data-lucide="plug-zap"></i>
@@ -1260,7 +1286,10 @@
 
         function getCompareResultText() {
             const resultEl = document.getElementById('compareResult');
-            return resultEl?.dataset.rawText || resultEl?.textContent || '';
+            const scoreEl = document.getElementById('compareScoreResult');
+            const scoreText = scoreEl?.dataset.rawText || scoreEl?.textContent || '';
+            const reviewText = resultEl?.dataset.rawText || resultEl?.textContent || '';
+            return [scoreText, reviewText].filter(Boolean).join('\n\n');
         }
 
         function updateTypeSummary() {
@@ -1414,7 +1443,6 @@
         function updateGlobalGenerationControls() {
             const hasActiveGeneration = activeGenerations.size > 0;
             const generateBtn = document.getElementById('generateBtn');
-            const exportBtn = document.getElementById('exportBtn');
             const stopAllBtn = document.getElementById('stopAllBtn');
 
             if (generateBtn) {
@@ -1423,15 +1451,16 @@
             if (stopAllBtn) {
                 stopAllBtn.disabled = !hasActiveGeneration && !batchGenerating;
             }
-            if (exportBtn) {
-                if (hasActiveGeneration) {
-                    exportBtn.disabled = true;
-                } else if (hasGeneratedOutput()) {
-                    exportBtn.disabled = false;
-                }
-            }
+            setExportButtonsDisabled(hasActiveGeneration || !hasGeneratedOutput());
             updateGlobalProgressDisplay();
             updateGenerationModeControls();
+        }
+
+        function setExportButtonsDisabled(disabled) {
+            ['exportBtn', 'exportWordBtn', 'exportJsonBtn', 'exportConvertBtn'].forEach(id => {
+                const button = document.getElementById(id);
+                if (button) button.disabled = disabled;
+            });
         }
 
         function updateGenerationControls(pairId) {
@@ -1662,10 +1691,6 @@
                             <button id="stop-gen-${pair.id}" class="small danger" onclick="stopSingleGeneration(${pair.id})" ${isPairGenerating(pair.id) && !isPairStopping(pair.id) ? '' : 'disabled'}>
                                 <i data-lucide="square"></i>
                                 ${isPairStopping(pair.id) ? '停止中' : '停止'}
-                            </button>
-                            <button class="small" onclick="compareSingle(${pair.id})">
-                                <i data-lucide="search"></i>
-                                对比审核
                             </button>
                         </div>
                     </div>
@@ -2188,7 +2213,8 @@
                 inputPairs.forEach(pair => updateGenerationControls(pair.id));
                 updateGlobalGenerationControls();
                 if (activeGenerations.size === 0 && hasGeneratedOutput()) {
-                    exportBtn.disabled = false;
+                    setExportButtonsDisabled(false);
+                    await generateFilesAndCompare();
                 }
             }
         }
@@ -2200,7 +2226,8 @@
 
             error.style.display = 'none';
             error.textContent = '';
-            exportBtn.disabled = true;
+            if (exportBtn) exportBtn.disabled = true;
+            setExportButtonsDisabled(true);
 
             const selectedApi = apiConfigs.find(c => c.selected);
             if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
@@ -2235,33 +2262,16 @@
             error.textContent = '';
 
             try {
-                const fileATextarea = document.getElementById('fileA');
-                const fileAContent = fileATextarea.value.trim();
-
-                if (!fileAContent) {
-                    error.textContent = '❌ 请先生成文件 A';
-                    error.style.display = 'block';
-                    addLog('导出Excel失败', '文件 A 为空');
-                    return;
-                }
-
-                const jsonData = JSON.parse(fileAContent);
-                const allQuestions = jsonData.questions || [];
-
-                if (allQuestions.length === 0) {
-                    error.textContent = '❌ 文件 A 中没有可导出的题目';
-                    error.style.display = 'block';
-                    addLog('导出Excel失败', '没有可导出的题目');
-                    return;
-                }
-
+                const allQuestions = getFileAQuestions();
                 const filename = document.getElementById('outputFilename').value || 'exam_questions';
-                addLog('开始导出Excel', `文件名: ${filename}, 题目数: ${allQuestions.length}`);
+                const template = document.getElementById('excelTemplate')?.value || 'standard';
+                const templateName = template === 'answer_helper' ? '答题帮手模板' : '标准题库模板';
+                addLog('开始导出Excel', `文件名: ${filename}, 题目数: ${allQuestions.length}, 模板: ${templateName}`);
 
                 const response = await fetch('/api/export', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ questions: allQuestions })
+                    body: JSON.stringify({ questions: allQuestions, template })
                 });
 
                 const blob = await response.blob();
@@ -2271,11 +2281,229 @@
                 a.download = `${filename}.xlsx`;
                 a.click();
                 window.URL.revokeObjectURL(url);
-                addLog('导出Excel成功', `已导出 ${allQuestions.length} 道题目到 ${filename}.xlsx`);
+                addLog('导出Excel成功', `已用${templateName}导出 ${allQuestions.length} 道题目到 ${filename}.xlsx`);
             } catch (e) {
                 error.textContent = `❌ 导出失败: ${e.message}`;
                 error.style.display = 'block';
                 addLog('导出Excel异常', e.message);
+            }
+        }
+
+        async function exportWord() {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+            error.textContent = '';
+            try {
+                const questions = getFileAQuestions();
+                const filename = document.getElementById('outputFilename').value || 'exam_questions';
+                addLog('开始导出Word', `文件名: ${filename}, 题目数: ${questions.length}`);
+                const response = await fetch('/api/export-word', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ questions })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const blob = await response.blob();
+                downloadBlob(blob, `${filename}.docx`);
+                addLog('导出Word成功', `已导出 ${questions.length} 道题目到 ${filename}.docx`);
+            } catch (e) {
+                error.textContent = `❌ Word 导出失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('导出Word异常', e.message);
+            }
+        }
+
+        function exportJSON() {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+            error.textContent = '';
+            try {
+                const questions = getFileAQuestions();
+                const filename = document.getElementById('outputFilename').value || 'exam_questions';
+                const payload = {
+                    version: 1,
+                    source: 'AB 对比审核内的文件 A',
+                    exportedAt: new Date().toISOString(),
+                    questions
+                };
+                downloadBlob(new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'}), `${filename}.json`);
+                addLog('导出JSON成功', `已导出 ${questions.length} 道题目到 ${filename}.json`);
+            } catch (e) {
+                error.textContent = `❌ JSON 导出失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('导出JSON异常', e.message);
+            }
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        function getFileAQuestions() {
+            const fileAContent = document.getElementById('fileA')?.value.trim() || '';
+            if (!fileAContent) {
+                throw new Error('请先生成 AB 对比审核内的文件 A');
+            }
+            const jsonData = JSON.parse(fileAContent);
+            const questions = jsonData.questions || [];
+            if (!Array.isArray(questions) || questions.length === 0) {
+                throw new Error('文件 A 中没有可导出的 questions 数据');
+            }
+            return questions;
+        }
+
+        async function convertTemplateJSON() {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+            error.textContent = '';
+            try {
+                const questions = getTemplateConvertSourceQuestions();
+                if (!questions.length) {
+                    throw new Error('没有可转换的 questions 数据');
+                }
+                const targetTemplate = document.getElementById('convertTargetTemplate').value;
+                const response = await fetch('/api/convert-template', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({questions, targetTemplate})
+                });
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                setTextareaValue('templateConvertOutput', JSON.stringify({questions: data.questions || []}, null, 2));
+                addLog('模板互转完成', `目标模板: ${targetTemplate === 'answer_helper' ? '答题帮手模板' : '标准题库模板'}, 题目数: ${(data.questions || []).length}`);
+            } catch (e) {
+                error.textContent = `❌ 模板互转失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('模板互转失败', e.message);
+            }
+        }
+
+        function getTemplateConvertSourceQuestions() {
+            const convertOutput = document.getElementById('templateConvertOutput')?.value.trim() || '';
+            const fileAContent = document.getElementById('fileA')?.value.trim() || '';
+            const sourceText = convertOutput || fileAContent;
+            if (!sourceText) {
+                throw new Error('请先导入模板文件，或生成文件 A');
+            }
+            const jsonData = JSON.parse(sourceText);
+            const questions = jsonData.questions || (Array.isArray(jsonData) ? jsonData : []);
+            if (!Array.isArray(questions)) {
+                throw new Error('JSON 中没有 questions 数组');
+            }
+            return questions;
+        }
+
+        function importTemplateSource() {
+            document.getElementById('templateImportFile')?.click();
+        }
+
+        function readFileAsBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const result = String(reader.result || '');
+                    resolve(result.includes(',') ? result.split(',').pop() : result);
+                };
+                reader.onerror = () => reject(new Error(`无法读取文件: ${file.name}`));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function handleTemplateImport(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+            error.textContent = '';
+            try {
+                const contentBase64 = await readFileAsBase64(file);
+                const response = await fetch('/api/import-template-file', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({fileName: file.name, contentBase64})
+                });
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                const payload = {
+                    sourceTemplate: data.sourceTemplate || 'unknown',
+                    questions: data.questions || []
+                };
+                setTextareaValue('templateConvertOutput', JSON.stringify(payload, null, 2));
+                addLog('导入模板文件完成', `${file.name}, 题目数: ${payload.questions.length}`);
+            } catch (e) {
+                error.textContent = `❌ 模板导入失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('模板导入失败', e.message);
+            } finally {
+                event.target.value = '';
+            }
+        }
+
+        function exportTemplateConvertJSON() {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+            error.textContent = '';
+            try {
+                const questions = getTemplateConvertSourceQuestions();
+                const payload = {
+                    version: 1,
+                    source: '模板互转',
+                    exportedAt: new Date().toISOString(),
+                    questions
+                };
+                downloadBlob(new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'}), 'template_converted_questions.json');
+                addLog('导出模板互转JSON', `题目数: ${questions.length}`);
+            } catch (e) {
+                error.textContent = `❌ 导出失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('导出模板互转JSON失败', e.message);
+            }
+        }
+
+        function refreshFileAState() {
+            const countEl = document.getElementById('file-a-q-count');
+            const compareBtn = document.getElementById('compareBtn');
+            try {
+                const data = JSON.parse(document.getElementById('fileA').value || '{}');
+                const count = Array.isArray(data.questions) ? data.questions.length : 0;
+                if (countEl) countEl.textContent = count ? `(共 ${count} 道)` : '';
+                if (compareBtn) compareBtn.disabled = count === 0;
+                setExportButtonsDisabled(count === 0);
+            } catch {
+                if (countEl) countEl.textContent = '';
+                if (compareBtn) compareBtn.disabled = true;
+                setExportButtonsDisabled(true);
+            }
+        }
+
+        function applyTemplateConvertToFileA() {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+            error.textContent = '';
+            try {
+                const output = document.getElementById('templateConvertOutput').value.trim();
+                if (!output) {
+                    throw new Error('请先执行模板互转');
+                }
+                JSON.parse(output);
+                setTextareaValue('fileA', output);
+                refreshFileAState();
+                addLog('模板互转应用完成', '转换结果已写入文件 A');
+            } catch (e) {
+                error.textContent = `❌ 应用失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('模板互转应用失败', e.message);
             }
         }
 
@@ -2330,6 +2558,135 @@
             }
 
             return null; // Not found or empty
+        }
+
+        function getFileASortFieldValue(question, sortKey) {
+            if (sortKey === 'chapter') {
+                return getQuestionFieldValue(question, '章节\n（勿删）') || '';
+            }
+            if (sortKey === 'type') {
+                return getQuestionFieldValue(question, '题型 （必填）') || '';
+            }
+            return '';
+        }
+
+        function parseChineseNumberText(text) {
+            const digitMap = {'零': 0, '〇': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9};
+            const unitMap = {'十': 10, '百': 100, '千': 1000};
+            let total = 0;
+            let section = 0;
+            let number = 0;
+            for (const char of String(text || '')) {
+                if (Object.prototype.hasOwnProperty.call(digitMap, char)) {
+                    number = digitMap[char];
+                } else if (Object.prototype.hasOwnProperty.call(unitMap, char)) {
+                    const unit = unitMap[char];
+                    section += (number || 1) * unit;
+                    number = 0;
+                } else if (char === '万') {
+                    total += (section + number) * 10000;
+                    section = 0;
+                    number = 0;
+                }
+            }
+            return total + section + number;
+        }
+
+        function normalizeFileASortValue(rawValue, sortKey) {
+            const text = String(rawValue || '').trim();
+            if (sortKey === 'chapter') {
+                const arabic = text.match(/\d+/);
+                if (arabic) {
+                    return `#${String(parseInt(arabic[0], 10)).padStart(8, '0')} ${text}`;
+                }
+                const chinese = text.match(/[零〇一二两三四五六七八九十百千万]+/);
+                if (chinese) {
+                    const value = parseChineseNumberText(chinese[0]);
+                    if (value > 0) {
+                        return `#${String(value).padStart(8, '0')} ${text}`;
+                    }
+                }
+            }
+            if (sortKey === 'type' && Array.isArray(availableQuestionTypes)) {
+                const index = availableQuestionTypes.indexOf(text);
+                if (index >= 0) {
+                    return `#${String(index).padStart(4, '0')} ${text}`;
+                }
+            }
+            return text;
+        }
+
+        function getFileASortLabel(sortKey) {
+            if (sortKey === 'chapter') return '章节';
+            if (sortKey === 'type') return '题型';
+            return '不排序';
+        }
+
+        function sortFileABy(primaryKey) {
+            const primary = document.getElementById('fileASortPrimary');
+            const secondary = document.getElementById('fileASortSecondary');
+            if (!primary || !secondary) return;
+            primary.value = primaryKey;
+            secondary.value = primaryKey === 'chapter' ? 'type' : 'chapter';
+            sortFileA();
+        }
+
+        function swapFileASortPriority() {
+            const primary = document.getElementById('fileASortPrimary');
+            const secondary = document.getElementById('fileASortSecondary');
+            if (!primary || !secondary) return;
+            const nextPrimary = secondary.value;
+            secondary.value = primary.value;
+            primary.value = nextPrimary;
+            addLog('交换文件A排序优先级', `第一优先级: ${getFileASortLabel(primary.value)}, 第二优先级: ${getFileASortLabel(secondary.value)}`);
+        }
+
+        function sortFileA() {
+            const error = document.getElementById('error');
+            error.style.display = 'none';
+            error.textContent = '';
+            try {
+                const fileATextarea = document.getElementById('fileA');
+                const fileAContent = fileATextarea.value.trim();
+                if (!fileAContent) {
+                    throw new Error('文件 A 为空');
+                }
+                const data = JSON.parse(fileAContent);
+                if (!Array.isArray(data.questions) || data.questions.length === 0) {
+                    throw new Error('文件 A 中没有 questions 数组');
+                }
+
+                const primary = document.getElementById('fileASortPrimary')?.value || 'chapter';
+                let secondary = document.getElementById('fileASortSecondary')?.value || 'type';
+                if (primary === secondary) {
+                    secondary = 'none';
+                }
+                const sortKeys = [primary, secondary].filter(key => key && key !== 'none');
+                if (sortKeys.length === 0) {
+                    throw new Error('请至少选择一个排序优先级');
+                }
+
+                data.questions = data.questions
+                    .map((question, index) => ({question, index}))
+                    .sort((a, b) => {
+                        for (const key of sortKeys) {
+                            const left = normalizeFileASortValue(getFileASortFieldValue(a.question, key), key);
+                            const right = normalizeFileASortValue(getFileASortFieldValue(b.question, key), key);
+                            const result = left.localeCompare(right, 'zh-Hans-CN', {numeric: true, sensitivity: 'base'});
+                            if (result !== 0) return result;
+                        }
+                        return a.index - b.index;
+                    })
+                    .map(item => item.question);
+
+                setTextareaValue('fileA', JSON.stringify(data, null, 2));
+                refreshFileAState();
+                addLog('文件A排序完成', `第一优先级: ${getFileASortLabel(primary)}, 第二优先级: ${getFileASortLabel(secondary)}, 题目数: ${data.questions.length}`);
+            } catch (e) {
+                error.textContent = `❌ 文件 A 排序失败: ${e.message}`;
+                error.style.display = 'block';
+                addLog('文件A排序失败', e.message);
+            }
         }
 
         function validateJSON(pairId) {
@@ -2442,7 +2799,7 @@
 
                 setTextareaValue('fileA', JSON.stringify(result, null, 2));
                 document.getElementById('compareBtn').disabled = false;
-                document.getElementById('exportBtn').disabled = false;
+                setExportButtonsDisabled(false);
                 addLog('生成文件A', `题目数: ${allQuestions.length}, 去除null: ${removeNull ? '是' : '否'}`);
             } catch (e) {
                 alert(`❌ 生成失败: ${e.message}`);
@@ -2512,6 +2869,15 @@
             addLog('生成文件B', `输入数: ${inputPairs.filter(p => p.text.trim()).length}`);
         }
 
+        async function generateFilesAndCompare() {
+            generateFileA();
+            generateFileB();
+            const fileA = document.getElementById('fileA')?.value.trim();
+            const fileB = document.getElementById('fileB')?.value.trim();
+            if (!fileA || !fileB) return;
+            await compareFiles();
+        }
+
         async function readEventStream(response, onText) {
             if (!response.ok) {
                 throw new Error(`请求失败: HTTP ${response.status}`);
@@ -2569,10 +2935,14 @@
 
         function resetCompareState() {
             const resultEl = document.getElementById('compareResult');
+            const scoreEl = document.getElementById('compareScoreResult');
             if (resultEl) {
                 resultEl.dataset.rawText = '';
             }
-            compareContext = {compareResult: '', fileA: '', fileB: ''};
+            if (scoreEl) {
+                scoreEl.dataset.rawText = '';
+            }
+            compareContext = {structuredResult: '', compareResult: '', fileA: '', fileB: ''};
             clearCompareChat();
         }
 
@@ -2678,15 +3048,79 @@
             }
 
             const compareBtn = document.getElementById('compareBtn');
+            const scoreEl = document.getElementById('compareScoreResult');
             const resultEl = document.getElementById('compareResult');
-            compareBtn.disabled = true;
-                compareContext = {compareResult: '', fileA, fileB};
-                updateMarkdownElement(resultEl, '', '正在对比分析中...');
+            if (compareBtn) compareBtn.disabled = true;
+            compareContext = {structuredResult: '', compareResult: '', fileA, fileB};
+            updateMarkdownElement(scoreEl, '', '正在生成结构化评分...');
+            updateMarkdownElement(resultEl, '', '正在生成对比测评...');
 
-            addLog('开始AI对比', `模型: ${selectedApi.model}`);
+            addLog('开始AI同步对比', `模型: ${selectedApi.model}, 缓存: ${selectedApi.useContextCache ? '开启' : '关闭'}`);
 
             try {
-                const response = await fetch('/api/compare', {
+                const streamCompare = async ({mode, prompt, element, contextKey}) => {
+                    const response = await fetch('/api/compare', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(await buildApiRequestPayload(selectedApi, {
+                            fileA,
+                            fileB,
+                            prompt,
+                            mode,
+                            useContextCache: Boolean(selectedApi.useContextCache)
+                        }))
+                    });
+
+                    let fullText = '';
+                    await readEventStream(response, text => {
+                        fullText += text;
+                        updateMarkdownElement(element, fullText);
+                    });
+                    compareContext[contextKey] = fullText;
+                    updateMarkdownElement(element, fullText || '未返回对比结果。');
+                    return fullText;
+                };
+
+                const [scoreText, reviewText] = await Promise.all([
+                    streamCompare({
+                        mode: 'score',
+                        prompt: getPromptValue('compareScore'),
+                        element: scoreEl,
+                        contextKey: 'structuredResult'
+                    }),
+                    streamCompare({
+                        mode: 'review',
+                        prompt: getPromptValue('compare'),
+                        element: resultEl,
+                        contextKey: 'compareResult'
+                    })
+                ]);
+
+                clearCompareChat();
+                addLog('AI同步对比完成', `结构化 ${scoreText.length} 字，对比测评 ${reviewText.length} 字`);
+            } catch (e) {
+                error.textContent = `❌ 对比失败: ${e.message}`;
+                error.style.display = 'block';
+                compareContext.structuredResult = '';
+                compareContext.compareResult = '';
+                addLog('AI同步对比异常', e.message);
+            } finally {
+                if (compareBtn) compareBtn.disabled = false;
+            }
+        }
+
+        async function compareSingle(pairId) {
+            addLog(`单个对比已合并 #${pairId + 1}`, '当前版本统一使用 AB 对比审核内的文件 A/B 进行同步对比');
+            await generateFilesAndCompare();
+        }
+
+        async function compareAllSingle() {
+            await generateFilesAndCompare();
+        }
+
+        /*
+        async function compareFilesLegacy() {
+            const response = await fetch('/api/compare', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(await buildApiRequestPayload(selectedApi, {
@@ -2696,27 +3130,10 @@
                     }))
                 });
 
-                let fullText = '';
-                await readEventStream(response, text => {
-                    fullText += text;
-                    updateMarkdownElement(resultEl, fullText);
-                });
-
-                compareContext.compareResult = fullText;
-                updateMarkdownElement(resultEl, fullText || '未返回对比结果。');
-                clearCompareChat();
-                addLog('AI对比完成', `输出字符数: ${fullText.length}`);
-            } catch (e) {
-                error.textContent = `❌ 对比失败: ${e.message}`;
-                error.style.display = 'block';
-                compareContext.compareResult = '';
-                addLog('AI对比异常', e.message);
-            } finally {
-                compareBtn.disabled = false;
-            }
         }
+        */
 
-        async function compareSingle(pairId) {
+        async function compareSingleLegacy(pairId) {
             const error = document.getElementById('error');
             error.style.display = 'none';
 
@@ -2786,7 +3203,7 @@
             }
         }
 
-        async function compareAllSingle() {
+        async function compareAllSingleLegacy() {
             const error = document.getElementById('error');
             error.style.display = 'none';
 

@@ -13,7 +13,7 @@ import uuid
 from cryptography.hazmat.primitives.asymmetric import padding
 from utils import get_or_create_key, get_or_create_transport_private_key, get_transport_public_key_pem
 from ai_service import generate_questions_stream, extract_directory, generate_filename, match_question_types, compare_files_stream, compare_chat_stream, test_api_connection
-from excel_service import export_to_excel
+from excel_service import convert_questions, export_to_excel, export_to_word, parse_excel_to_questions
 from logger import log_api_call
 from header_utils import get_question_type
 
@@ -271,6 +271,17 @@ class GenerateBatchRequest(BaseModel):
 
 class ExportRequest(BaseModel):
     questions: list
+    template: str = "standard"
+
+
+class ImportTemplateFileRequest(BaseModel):
+    fileName: str
+    contentBase64: str
+
+
+class ConvertTemplateRequest(BaseModel):
+    questions: list
+    targetTemplate: str
 
 
 class AIRequest(BaseModel):
@@ -292,6 +303,8 @@ class CompareRequest(BaseModel):
     fileA: str
     fileB: str
     prompt: str = ""
+    mode: str = "review"
+    useContextCache: bool = False
 
 
 class CompareChatRequest(BaseModel):
@@ -476,12 +489,45 @@ async def cancel_all_generate_questions_batch_stream():
 
 @app.post("/api/export")
 async def export_excel(req: ExportRequest):
-    excel_path, json_path = export_to_excel(req.questions)
+    excel_path, json_path = export_to_excel(req.questions, req.template)
     try:
         return FileResponse(excel_path, filename='exam_questions.xlsx', media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     finally:
         if os.path.exists(json_path):
             os.unlink(json_path)
+
+
+@app.post("/api/export-word")
+async def export_word(req: ExportRequest):
+    word_path = export_to_word(req.questions)
+    return FileResponse(word_path, filename='exam_questions.docx', media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
+
+@app.post("/api/import-template-file")
+async def import_template_file(req: ImportTemplateFileRequest):
+    try:
+        raw = base64.b64decode(req.contentBase64)
+        file_name = req.fileName.lower()
+        if file_name.endswith(".json"):
+            data = json.loads(raw.decode("utf-8-sig"))
+            questions = data.get("questions", data if isinstance(data, list) else [])
+            if not isinstance(questions, list):
+                raise ValueError("JSON 文件中没有 questions 数组")
+            return {"sourceTemplate": "json", "questions": convert_questions(questions, "standard")}
+        if file_name.endswith(".xlsx"):
+            return parse_excel_to_questions(raw)
+        raise ValueError("仅支持导入 .json 或 .xlsx 文件")
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/convert-template")
+async def convert_template(req: ConvertTemplateRequest):
+    try:
+        converted = convert_questions(req.questions, req.targetTemplate)
+        return {"questions": converted, "targetTemplate": req.targetTemplate}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.post("/api/extract-directory")
@@ -519,7 +565,16 @@ async def compare_files(req: CompareRequest):
     async def generate():
         try:
             api_url, api_key = resolve_api_credentials(req)
-            async for chunk in compare_files_stream(api_url, api_key, req.model, req.fileA, req.fileB, req.prompt):
+            async for chunk in compare_files_stream(
+                api_url,
+                api_key,
+                req.model,
+                req.fileA,
+                req.fileB,
+                req.prompt,
+                req.mode,
+                req.useContextCache
+            ):
                 yield chunk
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"

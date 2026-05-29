@@ -246,7 +246,7 @@
         }
         .api-row {
             display: grid;
-            grid-template-columns: 40px 150px 1fr 1fr 150px auto;
+            grid-template-columns: 40px 130px minmax(180px, 1fr) minmax(180px, 1fr) 130px 110px auto;
             gap: 12px;
             align-items: center;
             padding: 18px;
@@ -268,6 +268,27 @@
         .api-row input[type="text"],
         .api-row input[type="password"] {
             margin: 0;
+        }
+
+        .api-cache-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 38px;
+            padding: 0 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .api-cache-toggle input {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
         }
         /* Buttons */
         button {
@@ -350,8 +371,31 @@
         }
         .actions {
             display: flex;
+            flex-direction: column;
             gap: 16px;
             margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        .export-source-line {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .export-source-line svg {
+            width: 16px;
+            height: 16px;
+            color: var(--primary);
+        }
+
+        .export-button-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             flex-wrap: wrap;
         }
         .error {
@@ -832,6 +876,41 @@
             height: 17px;
         }
 
+        .section-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .compact-field,
+        .export-template-picker {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .compact-field {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .template-convert-toolbar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .export-template-picker select {
+            width: auto;
+            min-width: 180px;
+        }
+
         .type-picker-head {
             display: flex;
             justify-content: space-between;
@@ -1027,6 +1106,45 @@
             line-height: 1.72;
             white-space: normal;
             word-break: break-word;
+        }
+
+        .compare-results-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 12px;
+        }
+
+        .file-a-sort-toolbar {
+            display: flex;
+            align-items: end;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 0 0 8px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+        }
+
+        .file-a-sort-toolbar label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 118px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .file-a-sort-toolbar select {
+            min-height: 34px;
+            padding: 6px 8px;
+        }
+
+        .file-a-sort-toolbar button {
+            min-height: 34px;
+            padding: 6px 9px;
+            font-size: 12px;
         }
 
         .compare-markdown h1,
@@ -1240,7 +1358,7 @@
         }
 
         .api-row input[type="radio"] {
-            grid-row: 1 / span 3;
+            grid-row: 1 / span 4;
             align-self: center;
             width: 18px;
             height: 18px;
@@ -1259,6 +1377,10 @@
         .api-row button {
             grid-column: 2 / -1;
             justify-content: center;
+        }
+
+        .api-row .api-cache-toggle {
+            grid-column: 2 / -1;
         }
 
         .api-row .action-btns {
@@ -1795,6 +1917,7 @@
             }
 
             .api-row input:not([type="radio"]),
+            .api-row .api-cache-toggle,
             .api-row .action-btns {
                 grid-column: 1 / -1;
             }
@@ -2170,7 +2293,7 @@
         }
 
         body.theme-shadcn .api-row input[type="radio"] {
-            grid-row: 1 / span 3;
+            grid-row: 1 / span 4;
             align-self: center;
         }
 
@@ -2187,6 +2310,10 @@
         body.theme-shadcn .api-row button {
             grid-column: 2 / -1;
             justify-content: center;
+        }
+
+        body.theme-shadcn .api-row .api-cache-toggle {
+            grid-column: 2 / -1;
         }
 
         body.theme-shadcn .api-row .action-btns {
@@ -2884,6 +3011,7 @@
             body.theme-shadcn .api-row input[type="password"],
             body.theme-shadcn .api-row input[placeholder="API URL"],
             body.theme-shadcn .api-row input[placeholder="Model"],
+            body.theme-shadcn .api-row .api-cache-toggle,
             body.theme-shadcn .api-row .action-btns {
                 grid-column: 1 / -1;
                 grid-row: auto;
@@ -3048,6 +3176,15 @@
         }
 
         @media (max-width: 760px) {
+            .template-convert-toolbar {
+                grid-template-columns: 1fr;
+            }
+
+            .api-row,
+            .compare-results-grid {
+                grid-template-columns: 1fr;
+            }
+
             body.theme-shadcn .type-picker-head,
             .type-picker-head {
                 grid-template-columns: 1fr;
