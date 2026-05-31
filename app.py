@@ -13,6 +13,7 @@ import uuid
 from cryptography.hazmat.primitives.asymmetric import padding
 from utils import get_or_create_key, get_or_create_transport_private_key, get_transport_public_key_pem
 from ai_service import generate_questions_stream, extract_directory, generate_filename, match_question_types, compare_files_stream, compare_chat_stream, test_api_connection
+import ai_debug
 from excel_service import convert_questions, export_to_excel, export_to_word, parse_excel_to_questions
 from logger import log_api_call
 from header_utils import get_question_type
@@ -117,6 +118,7 @@ def new_batch_stream_item_state(item):
         "editable": "",
         "questionCount": 0,
         "charCount": 0,
+        "debugId": None,
         "error": None,
         "updatedAt": now_ts()
     }
@@ -150,18 +152,6 @@ def cleanup_batch_stream_jobs():
         BATCH_STREAM_JOBS.pop(job_id, None)
 
 
-def parse_stream_chunk_text(chunk):
-    if not chunk.startswith("data: "):
-        return None
-    try:
-        data = json.loads(chunk[6:].strip())
-    except Exception:
-        return None
-    if data.get("error"):
-        raise RuntimeError(data["error"])
-    return data.get("text")
-
-
 async def run_batch_stream_job(job_id, api_url, api_key, model, question_types, items, system_prompt, directory, concurrency):
     job = BATCH_STREAM_JOBS[job_id]
     try:
@@ -192,7 +182,8 @@ async def run_batch_stream_job(job_id, api_url, api_key, model, question_types, 
 
             state.update({"status": "running", "updatedAt": now_ts()})
             try:
-                async for chunk in generate_questions_stream(
+                stream_error = None
+                async for event in generate_questions_stream(
                     api_url,
                     api_key,
                     model,
@@ -205,11 +196,26 @@ async def run_batch_stream_job(job_id, api_url, api_key, model, question_types, 
                         state.update({"status": "cancelled", "error": "已取消", "updatedAt": now_ts()})
                         return
 
-                    text = parse_stream_chunk_text(chunk)
-                    if text:
-                        state["full"] += text
+                    etype = event.get("type")
+                    if etype == "record":
+                        state["debugId"] = event.get("id")
+                        state["updatedAt"] = now_ts()
+                    elif etype == "text":
+                        state["full"] += event["text"]
                         state["charCount"] = len(state["full"])
                         state["updatedAt"] = now_ts()
+                    elif etype == "error":
+                        stream_error = event.get("error") or "生成失败"
+                        break
+
+                if stream_error:
+                    state.update({
+                        "status": "error",
+                        "error": stream_error,
+                        "charCount": len(state["full"]),
+                        "updatedAt": now_ts()
+                    })
+                    return
 
                 editable = ""
                 question_count = 0
@@ -329,7 +335,7 @@ async def handle_ai_request(ai_func, req: AIRequest, result_key: str, error_msg:
     """通用 AI 请求处理函数"""
     try:
         api_url, api_key = resolve_api_credentials(req)
-        result = await ai_func(api_url, api_key, req.model, req.content, req.prompt)
+        result, debug_id = await ai_func(api_url, api_key, req.model, req.content, req.prompt)
         # print(result)
         log_api_call(
             method="POST",
@@ -339,7 +345,9 @@ async def handle_ai_request(ai_func, req: AIRequest, result_key: str, error_msg:
             response_body=result,
             duration_ms=0
         )
-        return {result_key: result} if result else {"error": error_msg}
+        if result:
+            return {result_key: result, "debugId": debug_id}
+        return {"error": error_msg, "debugId": debug_id}
     except Exception as e:
         return {"error": str(e)}
 
@@ -406,6 +414,21 @@ async def get_question_types():
             return {"questionTypes": types, "sampleData": data, "noticeTip": None}
     except Exception as e:
         return {"error": str(e), "questionTypes": [], "sampleData": {}, "noticeTip": None}
+
+
+@app.get("/api/ai-debug-logs")
+async def list_ai_debug_logs(since: float = 0.0):
+    """返回 AI 调用调试记录摘要列表（按时间升序）。"""
+    return {"records": ai_debug.list_records(since)}
+
+
+@app.get("/api/ai-debug-logs/{record_id}")
+async def get_ai_debug_log(record_id: str):
+    """返回单条 AI 调用的完整调试上下文。"""
+    record = ai_debug.get_record(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="调用记录不存在或已过期")
+    return record
 
 
 @app.post("/api/generate-batch-stream/start")
@@ -544,8 +567,8 @@ async def generate_filename_endpoint(req: AIRequest):
 async def match_question_types_endpoint(req: MatchQuestionTypesRequest):
     try:
         api_url, api_key = resolve_api_credentials(req)
-        matched = await match_question_types(api_url, api_key, req.model, req.content, req.questionTypes, req.prompt)
-        return {"questionTypes": matched}
+        matched, debug_id = await match_question_types(api_url, api_key, req.model, req.content, req.questionTypes, req.prompt)
+        return {"questionTypes": matched, "debugId": debug_id}
     except Exception as e:
         return {"error": str(e)}
 
@@ -554,8 +577,8 @@ async def match_question_types_endpoint(req: MatchQuestionTypesRequest):
 async def test_api_endpoint(req: TestApiRequest):
     try:
         api_url, api_key = resolve_api_credentials(req)
-        result = await test_api_connection(api_url, api_key, req.model)
-        return {"ok": True, "message": result or "OK"}
+        result, debug_id = await test_api_connection(api_url, api_key, req.model)
+        return {"ok": True, "message": result or "OK", "debugId": debug_id}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

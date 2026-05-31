@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css?v=20260531-3">
+    <link rel="stylesheet" href="/static/styles.css?v=20260531-4">
 </head>
 <body class="theme-shadcn">
     <div class="container">
@@ -24,6 +24,12 @@
                 <h1>AI 题库生成器</h1>
             </div>
             <div class="header-nav" id="quickNavBar"></div>
+            <div id="globalProgressBar" class="nav-progress is-idle" onclick="scrollToSection('generation')" title="全局生成进度">
+                <div class="nav-progress-track">
+                    <div class="nav-progress-fill"></div>
+                </div>
+                <span class="nav-progress-label">待生成</span>
+            </div>
         </div>
 
         <div id="floatingLogToast" class="floating-log-toast"></div>
@@ -165,7 +171,7 @@
                     <i data-lucide="terminal"></i>
                     系统控制台
                 </div>
-                <button class="small" onclick="toggleSystemConsole()">
+                <button class="small" id="consoleToggleBtn" onclick="toggleSystemConsole()" title="收起控制台">
                     <i data-lucide="panel-left-close"></i>
                 </button>
             </div>
@@ -189,6 +195,14 @@
                         <input id="autoCompareEnabled" type="checkbox" onchange="saveConsoleSettings()" style="width: 16px; height: 16px;">
                         生成完成后自动启动 AB 对比
                     </label>
+                </div>
+                <div class="console-section">
+                    <div class="console-section-title">后端轮询频率</div>
+                    <div class="console-row">
+                        <label for="pollIntervalMs">间隔(ms)</label>
+                        <input id="pollIntervalMs" type="number" value="1000" min="200" max="10000" step="100" onchange="saveConsoleSettings()">
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">生成时查询后端进度的间隔，范围 200–10000ms。</div>
                 </div>
                 <div class="console-section">
                     <div class="console-section-title">快捷导航</div>
@@ -266,6 +280,10 @@
                 <button id="stopAllBtn" class="small danger" onclick="cancelAllGenerationTasks()" disabled>
                     <i data-lucide="ban"></i>
                     结束全部任务
+                </button>
+                <button id="retryFailedBtn" class="small" onclick="retryFailedGenerations()" disabled title="重试所有生成失败的输出">
+                    <i data-lucide="refresh-ccw-dot"></i>
+                    一键重试失败项 <span class="retry-failed-count"></span>
                 </button>
                 <label id="batchConcurrencyGroup" style="display: flex; align-items: center; gap: 8px;">
                     <span style="font-size: 14px; color: var(--text-primary);">并发数</span>
@@ -521,6 +539,16 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=20260531-3"></script>
+    <div id="aiDebugModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">AI 调用上下文</div>
+                <button class="close-btn" onclick="closeAiDebug()">&times;</button>
+            </div>
+            <div class="ai-debug-body" id="aiDebugContent"></div>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=20260531-4"></script>
 </body>
 </html>

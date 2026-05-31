@@ -124,13 +124,17 @@
         }));
 
         // 日志系统
-        function addLog(action, detail = '') {
+        function addLog(action, detail = '', meta = null) {
             const logs = JSON.parse(localStorage.getItem('aiLogs') || '[]');
             const log = {
                 time: new Date().toLocaleString('zh-CN'),
                 action,
                 detail
             };
+            if (meta && meta.debugId) {
+                log.debugId = meta.debugId;
+                if (meta.kind) log.debugKind = meta.kind;
+            }
             logs.unshift(log);
             if (logs.length > 50) logs.splice(50);
             localStorage.setItem('aiLogs', JSON.stringify(logs));
@@ -145,11 +149,22 @@
                     quickNavItems: QUICK_NAV_DEFAULTS,
                     toastEnabled: true,
                     toastDuration: 1000,
+                    consoleCollapsed: true,
+                    pollIntervalMs: 1000,
                     ...JSON.parse(localStorage.getItem(CONSOLE_SETTINGS_STORAGE_KEY) || '{}')
                 };
             } catch {
-                return {autoCompareEnabled: false, quickNavItems: QUICK_NAV_DEFAULTS, toastEnabled: true, toastDuration: 1000};
+                return {autoCompareEnabled: false, quickNavItems: QUICK_NAV_DEFAULTS, toastEnabled: true, toastDuration: 1000, consoleCollapsed: true, pollIntervalMs: 1000};
             }
+        }
+
+        function clampPollIntervalMs(value) {
+            const num = Number.isFinite(value) ? value : parseInt(value, 10);
+            return Math.max(200, Math.min(10000, Number.isFinite(num) ? num : 1000));
+        }
+
+        function getPollIntervalMs() {
+            return clampPollIntervalMs(getConsoleSettings().pollIntervalMs);
         }
 
         function normalizeQuickNavItems(items) {
@@ -166,11 +181,14 @@
 
         function saveConsoleSettings() {
             const durationValue = parseInt(document.getElementById('toastLogDuration')?.value || '1000', 10);
+            const pollValue = parseInt(document.getElementById('pollIntervalMs')?.value || '1000', 10);
             const settings = {
                 autoCompareEnabled: document.getElementById('autoCompareEnabled')?.checked ?? false,
                 quickNavItems: normalizeQuickNavItems(readQuickNavSettingsFromUI()),
                 toastEnabled: document.getElementById('toastLogEnabled')?.checked ?? true,
-                toastDuration: Math.max(300, Math.min(5000, Number.isFinite(durationValue) ? durationValue : 1000))
+                toastDuration: Math.max(300, Math.min(5000, Number.isFinite(durationValue) ? durationValue : 1000)),
+                pollIntervalMs: clampPollIntervalMs(pollValue),
+                consoleCollapsed: getConsoleSettings().consoleCollapsed
             };
             localStorage.setItem(CONSOLE_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
             renderQuickNavBar();
@@ -181,11 +199,30 @@
             const autoCompare = document.getElementById('autoCompareEnabled');
             const enabled = document.getElementById('toastLogEnabled');
             const duration = document.getElementById('toastLogDuration');
+            const poll = document.getElementById('pollIntervalMs');
             if (autoCompare) autoCompare.checked = Boolean(settings.autoCompareEnabled);
             if (enabled) enabled.checked = Boolean(settings.toastEnabled);
             if (duration) duration.value = settings.toastDuration;
+            if (poll) poll.value = clampPollIntervalMs(settings.pollIntervalMs);
+            setConsoleCollapsed(Boolean(settings.consoleCollapsed), {persist: false});
             renderQuickNavSettings();
             renderQuickNavBar();
+        }
+
+        function setConsoleCollapsed(collapsed, {persist = true} = {}) {
+            const consoleEl = document.getElementById('systemConsole');
+            if (consoleEl) consoleEl.classList.toggle('collapsed', collapsed);
+            const btn = document.getElementById('consoleToggleBtn');
+            if (btn) {
+                btn.innerHTML = `<i data-lucide="${collapsed ? 'panel-left-open' : 'panel-left-close'}"></i>`;
+                btn.title = collapsed ? '展开控制台' : '收起控制台';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+            if (persist) {
+                const settings = getConsoleSettings();
+                settings.consoleCollapsed = collapsed;
+                localStorage.setItem(CONSOLE_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+            }
         }
 
         function getQuickNavItems() {
@@ -237,13 +274,18 @@
                 container.innerHTML = '';
                 return;
             }
+            const colors = loadSectionColors();
             container.innerHTML = `
                 <div class="quick-nav-list">
-                    ${items.map(item => `
-                        <button type="button" class="quick-nav-btn" onclick="scrollToSection('${item.key}')" title="${escapeHTML(item.label)}">
-                            ${escapeHTML(item.label)}
-                        </button>
-                    `).join('')}
+                    ${items.map(item => {
+                        const color = colors[item.key] || '#64748B';
+                        const style = `--nav-accent:${color};--nav-tint:${hexToRgba(color, 0.12)};--nav-border:${hexToRgba(color, 0.4)};`;
+                        return `
+                        <button type="button" class="quick-nav-btn" style="${style}" onclick="scrollToSection('${item.key}')" title="${escapeHTML(item.label)}">
+                            <span class="quick-nav-dot"></span>
+                            <span class="quick-nav-label">${escapeHTML(item.label)}</span>
+                        </button>`;
+                    }).join('')}
                 </div>
             `;
         }
@@ -265,7 +307,8 @@
 
         function toggleSystemConsole() {
             const consoleEl = document.getElementById('systemConsole');
-            consoleEl?.classList.toggle('collapsed');
+            const collapsed = !consoleEl?.classList.contains('collapsed');
+            setConsoleCollapsed(collapsed);
         }
 
         function loadPromptOverrides() {
@@ -357,13 +400,123 @@
         function renderLogs() {
             const logs = JSON.parse(localStorage.getItem('aiLogs') || '[]');
             const container = document.getElementById('logContent');
+            if (!container) return;
             container.innerHTML = logs.map(log => `
-                <div class="log-entry">
+                <div class="log-entry${log.debugId ? ' has-debug' : ''}">
+                    ${log.debugId ? `<button type="button" class="log-debug-btn" title="查看 AI 调用上下文" onclick="openAiDebug('${escapeHTML(log.debugId)}')"><i data-lucide="search-code"></i></button>` : ''}
                     <div class="log-time">${log.time}</div>
                     <div class="log-action">${log.action}</div>
                     ${log.detail ? `<div class="log-detail">${log.detail}</div>` : ''}
                 </div>
             `).join('');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        const AI_DEBUG_KIND_LABELS = {
+            generation: '题目生成',
+            filename: '文件名生成',
+            directory: '目录提取',
+            typeMatch: '题型匹配',
+            compare: 'AB 对比',
+            compareScore: '结构化评分',
+            compareChat: '对比追问',
+            test: 'API 连接测试'
+        };
+
+        async function openAiDebug(debugId) {
+            const modal = document.getElementById('aiDebugModal');
+            const body = document.getElementById('aiDebugContent');
+            if (!modal || !body) return;
+            body.innerHTML = '<div class="ai-debug-empty">正在加载调用上下文...</div>';
+            modal.style.display = 'block';
+            try {
+                const response = await fetch(`/api/ai-debug-logs/${encodeURIComponent(debugId)}`);
+                if (response.status === 404) {
+                    body.innerHTML = '<div class="ai-debug-empty">该调用记录已过期或不存在（服务重启后会清空记录）。</div>';
+                    return;
+                }
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const record = await response.json();
+                body.innerHTML = renderAiDebugRecord(record);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            } catch (e) {
+                body.innerHTML = `<div class="ai-debug-empty">加载失败：${escapeHTML(e.message)}</div>`;
+            }
+        }
+
+        function closeAiDebug() {
+            const modal = document.getElementById('aiDebugModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function renderAiDebugRecord(record) {
+            const req = record.request || {};
+            const resp = record.response || {};
+            const messages = Array.isArray(req.messages) ? req.messages : [];
+            const kindLabel = record.kindLabel || AI_DEBUG_KIND_LABELS[record.kind] || record.kind || 'AI 调用';
+            const statusText = record.error ? '失败' : (record.status === 'done' ? '成功' : (record.status || ''));
+            const created = record.createdAt ? new Date(record.createdAt * 1000).toLocaleString('zh-CN') : '';
+            const roleLabels = {system: '系统 system', user: '用户 user', assistant: '助手 assistant'};
+            const fmtHeaders = (h) => (h && Object.keys(h).length)
+                ? Object.entries(h).map(([k, v]) => `<div class="kv-row"><span class="kv-key">${escapeHTML(k)}</span><span class="kv-val">${escapeHTML(String(v))}</span></div>`).join('')
+                : '<div class="ai-debug-muted">（无）</div>';
+
+            const messagesHtml = messages.length
+                ? messages.map(m => `
+                    <div class="ai-msg ai-msg-${escapeHTML(m.role || 'user')}">
+                        <div class="ai-msg-role">${escapeHTML(roleLabels[m.role] || m.role || '')}</div>
+                        <pre class="ai-msg-content">${escapeHTML(typeof m.content === 'string' ? m.content : JSON.stringify(m.content, null, 2))}</pre>
+                    </div>
+                `).join('')
+                : '<div class="ai-debug-muted">（无消息）</div>';
+
+            const usageRow = resp.usage
+                ? `<div class="kv-row"><span class="kv-key">usage</span><span class="kv-val">${escapeHTML(JSON.stringify(resp.usage))}</span></div>`
+                : '';
+
+            return `
+                <div class="ai-debug-summary">
+                    <span class="ai-debug-chip">${escapeHTML(kindLabel)}</span>
+                    <span class="ai-debug-chip ${record.error ? 'is-error' : 'is-ok'}">${escapeHTML(statusText)}</span>
+                    <span class="ai-debug-chip">模型：${escapeHTML(record.model || '-')}</span>
+                    <span class="ai-debug-chip">耗时：${record.durationMs != null ? record.durationMs + ' ms' : '-'}</span>
+                    <span class="ai-debug-chip">${escapeHTML(created)}</span>
+                </div>
+                ${record.error ? `<div class="ai-debug-error">${escapeHTML(record.error)}</div>` : ''}
+
+                <div class="ai-debug-section">
+                    <div class="ai-debug-section-title"><i data-lucide="messages-square"></i> 请求消息</div>
+                    ${messagesHtml}
+                </div>
+
+                <div class="ai-debug-section">
+                    <div class="ai-debug-section-title"><i data-lucide="arrow-up-right"></i> 请求信息</div>
+                    <div class="kv-row"><span class="kv-key">method</span><span class="kv-val">${escapeHTML(req.method || 'POST')}</span></div>
+                    <div class="kv-row"><span class="kv-key">url</span><span class="kv-val">${escapeHTML(record.url || '')}</span></div>
+                    <div class="kv-row"><span class="kv-key">stream</span><span class="kv-val">${req.stream ? 'true' : 'false'}</span></div>
+                    <div class="ai-debug-subtitle">请求头</div>
+                    ${fmtHeaders(req.headers)}
+                </div>
+
+                <div class="ai-debug-section">
+                    <div class="ai-debug-section-title"><i data-lucide="arrow-down-left"></i> 响应信息</div>
+                    <div class="kv-row"><span class="kv-key">status</span><span class="kv-val">${resp.statusCode != null ? escapeHTML(String(resp.statusCode)) : '-'}</span></div>
+                    <div class="kv-row"><span class="kv-key">finish_reason</span><span class="kv-val">${escapeHTML(String(resp.finishReason ?? '-'))}</span></div>
+                    ${usageRow}
+                    <div class="ai-debug-subtitle">响应头</div>
+                    ${fmtHeaders(resp.headers)}
+                </div>
+
+                <div class="ai-debug-section">
+                    <div class="ai-debug-section-title"><i data-lucide="file-text"></i> 返回内容</div>
+                    <pre class="ai-msg-content">${escapeHTML(resp.content || '（无）')}</pre>
+                </div>
+
+                <details class="ai-debug-raw">
+                    <summary>原始数据（JSON）</summary>
+                    <pre class="ai-msg-content">${escapeHTML(JSON.stringify(record, null, 2))}</pre>
+                </details>
+            `;
         }
 
         function clearLogs() {
@@ -425,6 +578,7 @@
                 });
             });
             updateSectionColorControls(colors);
+            renderQuickNavBar();
         }
 
         function updateSectionColorControls(colors = loadSectionColors()) {
@@ -645,11 +799,11 @@
                 const data = await response.json();
                 if (data.directory) {
                     setTextareaValue('directory', data.directory);
-                    addLog('AI提取目录成功', `提取了 ${data.directory.split('\n').length} 行目录`);
+                    addLog('AI提取目录成功', `提取了 ${data.directory.split('\n').length} 行目录`, data.debugId ? {debugId: data.debugId, kind: 'directory'} : null);
                 } else if (data.error) {
                     error.textContent = '❌ ' + data.error;
                     error.style.display = 'block';
-                    addLog('AI提取目录失败', data.error);
+                    addLog('AI提取目录失败', data.error, data.debugId ? {debugId: data.debugId, kind: 'directory'} : null);
                 }
             } catch (e) {
                 error.textContent = `❌ 提取失败: ${e.message}`;
@@ -692,11 +846,11 @@
                 const data = await response.json();
                 if (data.filename) {
                     document.getElementById('outputFilename').value = data.filename;
-                    addLog('AI生成文件名成功', `文件名: ${data.filename}`);
+                    addLog('AI生成文件名成功', `文件名: ${data.filename}`, data.debugId ? {debugId: data.debugId, kind: 'filename'} : null);
                 } else if (data.error) {
                     error.textContent = '❌ ' + data.error;
                     error.style.display = 'block';
-                    addLog('AI生成文件名失败', data.error);
+                    addLog('AI生成文件名失败', data.error, data.debugId ? {debugId: data.debugId, kind: 'filename'} : null);
                 }
             } catch (e) {
                 error.textContent = `❌ 生成失败: ${e.message}`;
@@ -1030,7 +1184,7 @@
                 }
                 error.textContent = `API 测试成功: ${config.name}`;
                 error.style.display = 'block';
-                addLog('API测试成功', `${config.name}: ${data.message || 'OK'}`);
+                addLog('API测试成功', `${config.name}: ${data.message || 'OK'}`, data.debugId ? {debugId: data.debugId, kind: 'test'} : null);
             } catch (e) {
                 error.textContent = `API 测试失败: ${e.message}`;
                 error.style.display = 'block';
@@ -1183,11 +1337,12 @@
                 const data = await response.json();
                 if (data.error) throw new Error(data.error);
                 const matched = Array.isArray(data.questionTypes) ? data.questionTypes : [];
+                const meta = data.debugId ? {debugId: data.debugId, kind: 'typeMatch'} : null;
                 if (matched.length) {
                     setSelectedTypes(matched);
-                    addLog('AI匹配题型成功', matched.join(', '));
+                    addLog('AI匹配题型成功', matched.join(', '), meta);
                 } else {
-                    addLog('AI匹配题型完成', '未匹配到候选题型，保留当前选择');
+                    addLog('AI匹配题型完成', '未匹配到候选题型，保留当前选择', meta);
                 }
             } catch (e) {
                 addLog('AI匹配题型异常', e.message);
@@ -1551,7 +1706,10 @@
                     <span class="progress-main">${escapeHTML(normalized.label)}</span>
                     <span class="progress-detail">${escapeHTML(normalized.detail)}</span>
                 `;
+                const card = progressEl.closest('.output-pair');
+                if (card) card.classList.toggle('is-error', normalized.status === 'error');
             }
+            updateRetryFailedButton();
         }
 
         function getBatchConcurrency() {
@@ -1592,6 +1750,7 @@
             setExportButtonsDisabled(hasActiveGeneration || !hasGeneratedOutput());
             updateGlobalProgressDisplay();
             updateGenerationModeControls();
+            updateRetryFailedButton();
         }
 
         function setExportButtonsDisabled(disabled) {
@@ -1700,12 +1859,33 @@
         }
 
         function updateGlobalProgressDisplay() {
-            const el = document.getElementById('globalProgressText');
-            if (!el) return;
             const {completed, total, status} = globalGenerationProgress;
             const done = total > 0 && completed >= total && status === 'done';
             const cancelled = status === 'cancelled';
-            el.textContent = done ? `${completed}/${total} 完成` : (cancelled ? `${completed}/${total} 已取消` : `${completed}/${total}`);
+            const errored = status === 'error';
+
+            const el = document.getElementById('globalProgressText');
+            if (el) {
+                el.textContent = done ? `${completed}/${total} 完成` : (cancelled ? `${completed}/${total} 已取消` : `${completed}/${total}`);
+            }
+
+            const bar = document.getElementById('globalProgressBar');
+            if (bar) {
+                const fill = bar.querySelector('.nav-progress-fill');
+                const label = bar.querySelector('.nav-progress-label');
+                const active = total > 0 && (status === 'running' || status === 'queued');
+                const pct = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+                if (fill) fill.style.width = (done ? 100 : pct) + '%';
+                if (label) label.textContent = total > 0 ? `${completed}/${total}` : '待生成';
+                bar.classList.toggle('is-idle', total === 0);
+                bar.classList.toggle('is-active', active);
+                bar.classList.toggle('is-done', done);
+                bar.classList.toggle('is-cancelled', cancelled);
+                bar.classList.toggle('is-error', errored);
+                bar.title = total > 0
+                    ? `全局生成进度：${completed}/${total}${done ? '（已完成）' : cancelled ? '（已取消）' : errored ? '（出错）' : ''}`
+                    : '全局生成进度';
+            }
         }
 
         function updateOutputFull(pairId, text, shouldScroll = false) {
@@ -1818,9 +1998,10 @@
         function renderOutputPairs() {
             const container = document.getElementById('outputPairs');
             container.innerHTML = outputPairs.map((pair, idx) => `
-                <div class="output-pair">
+                <div class="output-pair${pair.progress?.status === 'error' ? ' is-error' : ''}">
                     <div class="output-pair-header">
                         <button type="button" class="pair-link" onclick="jumpToInput(${pair.id})" title="跳转到对应输入">输出 #${pair.id + 1} <span id="q-count-${pair.id}" style="color: #6366f1;"></span></button>
+                        <span class="output-range-badge" id="range-${pair.id}"></span>
                         <div class="output-actions">
                             <button id="regen-${pair.id}" class="small" onclick="regenerateSingle(${pair.id})" ${batchGenerating && !isPairGenerating(pair.id) ? 'disabled' : ''}>
                                 <i data-lucide="refresh-cw"></i>
@@ -1831,6 +2012,13 @@
                                 ${isPairStopping(pair.id) ? '停止中' : '停止'}
                             </button>
                         </div>
+                    </div>
+                    <div class="output-retry-row">
+                        <span class="output-retry-hint"><i data-lucide="alert-triangle"></i> 此输出生成失败</span>
+                        <button class="small danger" onclick="regenerateSingle(${pair.id})">
+                            <i data-lucide="refresh-cw"></i>
+                            重试此项
+                        </button>
                     </div>
                     <div class="output-grid">
                         <div>
@@ -2124,7 +2312,7 @@
         async function pollBackendStreamingJob(jobId, signal, onProgress) {
             let latest = null;
             while (true) {
-                await waitWithSignal(1000, signal);
+                await waitWithSignal(getPollIntervalMs(), signal);
                 const response = await fetch(`/api/generate-batch-stream/${encodeURIComponent(jobId)}/progress`, {signal});
                 if (!response.ok) {
                     throw new Error(`进度查询失败: HTTP ${response.status}`);
@@ -2185,7 +2373,7 @@
                 updateOutputEditable(pairId, '');
                 setGenerationProgress(pairId, {status: 'error', charCount: result.charCount || 0, error: result.error});
                 validateJSON(pairId);
-                addLog(`生成异常 #${pairId + 1}`, result.error);
+                addLog(`生成异常 #${pairId + 1}`, result.error, result.debugId ? {debugId: result.debugId, kind: 'generation'} : null);
                 return false;
             }
 
@@ -2208,7 +2396,7 @@
                 charCount: fullText.length,
                 questionCount
             });
-            addLog(`AI生成完成 #${pairId + 1}`, `生成了 ${questionCount} 道题目, 总字符: ${fullText.length}`);
+            addLog(`AI生成完成 #${pairId + 1}`, `生成了 ${questionCount} 道题目, 总字符: ${fullText.length}`, result.debugId ? {debugId: result.debugId, kind: 'generation'} : null);
             return true;
         }
 
@@ -2314,6 +2502,63 @@
                 error.style.display = 'block';
                 addLog(`重新生成异常 #${pairId + 1}`, e.message);
             }
+        }
+
+        function getFailedPairIds() {
+            return outputPairs
+                .filter(pair => pair.progress?.status === 'error')
+                .map(pair => pair.id);
+        }
+
+        function hasFailedGenerations() {
+            return getFailedPairIds().length > 0;
+        }
+
+        function updateRetryFailedButton() {
+            const btn = document.getElementById('retryFailedBtn');
+            if (!btn) return;
+            const failedCount = getFailedPairIds().length;
+            const busy = batchGenerating || activeGenerations.size > 0;
+            btn.disabled = failedCount === 0 || busy;
+            const labelEl = btn.querySelector('.retry-failed-count');
+            if (labelEl) labelEl.textContent = failedCount > 0 ? `(${failedCount})` : '';
+        }
+
+        async function retryFailedGenerations() {
+            const error = document.getElementById('error');
+            if (error) error.style.display = 'none';
+
+            const failedIds = getFailedPairIds();
+            if (!failedIds.length) {
+                addLog('一键重试', '没有失败的输出需要重试');
+                return;
+            }
+
+            const selectedApi = apiConfigs.find(c => c.selected);
+            if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
+                if (error) {
+                    error.textContent = '❌ 请完整填写选中的 API 配置';
+                    error.style.display = 'block';
+                }
+                addLog('一键重试失败', 'API配置不完整');
+                return;
+            }
+            if (selectedTypes.length === 0) {
+                if (error) {
+                    error.textContent = '❌ 请选择题型';
+                    error.style.display = 'block';
+                }
+                addLog('一键重试失败', '未选择题型');
+                return;
+            }
+
+            addLog('一键重试失败项', `共 ${failedIds.length} 个失败输出将重试`);
+            // 复用单项重新生成路径（每项走后端流式生成），并行触发
+            await Promise.all(failedIds.map(id => regenerateSingle(id).catch(e => {
+                addLog(`重试异常 #${id + 1}`, e.message);
+            })));
+            addLog('一键重试结束', `已触发 ${failedIds.length} 个失败输出的重试`);
+            updateRetryFailedButton();
         }
 
         async function generateQuestionsBackendStreamingBatch(validInputCount, exportBtn) {
@@ -2987,42 +3232,78 @@
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
 
+        // 给一段题库 JSON 文本的题干加上连续序号 [NN]，返回处理结果（无效返回 null）
+        function applySequenceToQuestionsJSON(jsonText, startIndex = 1) {
+            const text = (jsonText || '').trim();
+            if (!text) return null;
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch {
+                return null;
+            }
+            if (!data || !Array.isArray(data.questions) || data.questions.length === 0) {
+                return null;
+            }
+            const stemKey = '题干（必填）';
+            data.questions.forEach((q, i) => {
+                const seq = `[${String(startIndex + i).padStart(2, '0')}]`;
+                if (q[stemKey] != null) {
+                    // 移除旧序号（如果存在），避免重复添加
+                    const cleaned = String(q[stemKey]).replace(/^\[\d+\]\s*/, '').trim();
+                    q[stemKey] = `${seq}${cleaned}`;
+                }
+            });
+            const count = data.questions.length;
+            return {
+                text: JSON.stringify(data, null, 2),
+                count,
+                startIndex,
+                endIndex: startIndex + count - 1
+            };
+        }
+
         function addSequenceNumbers() {
             const fileATextarea = document.getElementById('fileA');
             const fileAContent = fileATextarea.value;
 
-            if (!fileAContent.trim()) {
-                alert('❌ 文件 A 中没有内容可添加序号。');
-                addLog('添加序号失败', '文件 A 为空');
-                return;
-            }
-
-            try {
-                const data = JSON.parse(fileAContent);
-                if (!data.questions || !Array.isArray(data.questions)) {
-                    alert('❌ 文件 A 的内容不是有效的题目JSON格式（缺少 questions 数组）。');
-                    addLog('添加序号失败', 'JSON格式无效');
+            // 1) 给每个输出内部添加连续序号，并在标题处显示题号范围
+            let running = 1;
+            let numberedOutputs = 0;
+            outputPairs.forEach(pair => {
+                const editableEl = document.getElementById(`editable-${pair.id}`);
+                const source = editableEl ? editableEl.value : (pair.editable || '');
+                const result = applySequenceToQuestionsJSON(source, running);
+                const badge = document.getElementById(`range-${pair.id}`);
+                if (!result) {
+                    if (badge) badge.textContent = '';
                     return;
                 }
+                updateOutputEditable(pair.id, result.text);
+                validateJSON(pair.id);
+                if (badge) badge.textContent = `题 ${result.startIndex}–${result.endIndex}`;
+                running = result.endIndex + 1;
+                numberedOutputs += 1;
+            });
 
-                data.questions.forEach((q, index) => {
-                    const seq = `[${String(index + 1).padStart(2, '0')}]`;
-                    const stemKey = '题干（必填）';
-                    
-                    // 移除旧序号（如果存在），避免重复添加
-                    if (q[stemKey]) {
-                        q[stemKey] = q[stemKey].replace(/^\[\d+\]\s*/, '').trim();
-                        q[stemKey] = `${seq}${q[stemKey]}`;
-                    }
-                });
-
-                setTextareaValue('fileA', JSON.stringify(data, null, 2));
-                addLog('添加序号成功', `为 ${data.questions.length} 道题目添加了序号`);
-
-            } catch (e) {
-                alert(`❌ 处理JSON时出错: ${e.message}`);
-                addLog('添加序号异常', e.message);
+            // 2) 给文件 A 添加序号（与输出保持一致的连续编号）
+            if (!fileAContent.trim()) {
+                if (numberedOutputs > 0) {
+                    addLog('添加序号', `已为 ${numberedOutputs} 个输出添加序号；文件 A 为空，未处理`);
+                } else {
+                    alert('❌ 文件 A 中没有内容可添加序号。');
+                    addLog('添加序号失败', '文件 A 为空且无可编号输出');
+                }
+                return;
             }
+            const fileAResult = applySequenceToQuestionsJSON(fileAContent, 1);
+            if (!fileAResult) {
+                alert('❌ 文件 A 的内容不是有效的题目JSON格式（缺少 questions 数组）。');
+                addLog('添加序号失败', 'JSON格式无效');
+                return;
+            }
+            setTextareaValue('fileA', fileAResult.text);
+            addLog('添加序号成功', `文件 A ${fileAResult.count} 道，已为 ${numberedOutputs} 个输出添加序号`);
         }
 
         function generateFileB() {
@@ -3046,7 +3327,7 @@
             await compareFiles();
         }
 
-        async function readEventStream(response, onText) {
+        async function readEventStream(response, onText, onMeta) {
             if (!response.ok) {
                 throw new Error(`请求失败: HTTP ${response.status}`);
             }
@@ -3067,10 +3348,14 @@
                     if (!line.startsWith('data: ')) continue;
                     const data = JSON.parse(line.slice(6));
                     if (data.error) {
+                        if (data.debugId && onMeta) onMeta(data);
                         throw new Error(data.error);
                     }
                     if (data.text) {
                         onText(data.text);
+                    }
+                    if (data.debugId && onMeta) {
+                        onMeta(data);
                     }
                 }
             }
@@ -3173,15 +3458,16 @@
                 });
 
                 let fullText = '';
+                let debugId = null;
                 await readEventStream(response, text => {
                     fullText += text;
                     assistantMessage.content = fullText;
                     renderCompareChat();
-                });
+                }, meta => { if (meta.debugId) debugId = meta.debugId; });
 
                 assistantMessage.content = fullText || '未返回内容。';
                 renderCompareChat();
-                addLog('对比追问完成', `输出字符数: ${fullText.length}`);
+                addLog('对比追问完成', `输出字符数: ${fullText.length}`, debugId ? {debugId, kind: 'compareChat'} : null);
             } catch (e) {
                 assistantMessage.content = `❌ 追问失败: ${e.message}`;
                 renderCompareChat();
@@ -3226,7 +3512,7 @@
             addLog('开始AI同步对比', `模型: ${selectedApi.model}, 缓存: ${selectedApi.useContextCache ? '开启' : '关闭'}`);
 
             try {
-                const streamCompare = async ({mode, prompt, element, contextKey}) => {
+                const streamCompare = async ({mode, prompt, element, contextKey, label}) => {
                     const response = await fetch('/api/compare', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -3240,12 +3526,14 @@
                     });
 
                     let fullText = '';
+                    let debugId = null;
                     await readEventStream(response, text => {
                         fullText += text;
                         updateMarkdownElement(element, fullText);
-                    });
+                    }, meta => { if (meta.debugId) debugId = meta.debugId; });
                     compareContext[contextKey] = fullText;
                     updateMarkdownElement(element, fullText || '未返回对比结果。');
+                    addLog(`AI对比完成·${label}`, `${fullText.length} 字`, debugId ? {debugId, kind: mode === 'score' ? 'compareScore' : 'compare'} : null);
                     return fullText;
                 };
 
@@ -3254,13 +3542,15 @@
                         mode: 'score',
                         prompt: getPromptValue('compareScore'),
                         element: scoreEl,
-                        contextKey: 'structuredResult'
+                        contextKey: 'structuredResult',
+                        label: '结构化评分'
                     }),
                     streamCompare({
                         mode: 'review',
                         prompt: getPromptValue('compare'),
                         element: resultEl,
-                        contextKey: 'compareResult'
+                        contextKey: 'compareResult',
+                        label: '对比测评'
                     })
                 ]);
 
