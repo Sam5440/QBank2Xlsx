@@ -132,3 +132,8 @@ The system supports 9 question types (题型):
 - **Excel styling**: Header row light blue (#B4C7E7), 宋体 font size 11, borders on all cells
 - **Question type detection**: Handles variations in field names (spaces, newlines in "题型 （必填）")
 - **Demo data**: `demo_questions.json` serves dual purpose: UI preview and AI format examples
+
+## Frontend Change Rule
+
+- When changing `index.html`, `static/app.js`, or `static/styles.css`, always bump the version query string used by the static asset links in `index.html` such as `/static/app.js?v=...` and `/static/styles.css?v=...`.
+- Purpose: avoid browser cache causing the user to see stale UI after frontend edits on port `8111`.

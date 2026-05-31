@@ -117,6 +117,11 @@
             '#64748B',
             '#BE123C'
         ];
+        const QUICK_NAV_DEFAULTS = SECTION_COLOR_ITEMS.map(item => ({
+            key: item.key,
+            label: item.label,
+            visible: !['logs'].includes(item.key)
+        }));
 
         // 日志系统
         function addLog(action, detail = '') {
@@ -136,30 +141,115 @@
         function getConsoleSettings() {
             try {
                 return {
+                    autoCompareEnabled: false,
+                    quickNavItems: QUICK_NAV_DEFAULTS,
                     toastEnabled: true,
                     toastDuration: 1000,
                     ...JSON.parse(localStorage.getItem(CONSOLE_SETTINGS_STORAGE_KEY) || '{}')
                 };
             } catch {
-                return {toastEnabled: true, toastDuration: 1000};
+                return {autoCompareEnabled: false, quickNavItems: QUICK_NAV_DEFAULTS, toastEnabled: true, toastDuration: 1000};
             }
+        }
+
+        function normalizeQuickNavItems(items) {
+            const savedMap = new Map((Array.isArray(items) ? items : []).map(item => [item.key, item]));
+            return QUICK_NAV_DEFAULTS.map(item => {
+                const saved = savedMap.get(item.key) || {};
+                return {
+                    key: item.key,
+                    label: String(saved.label || item.label).trim() || item.label,
+                    visible: saved.visible ?? item.visible
+                };
+            });
         }
 
         function saveConsoleSettings() {
             const durationValue = parseInt(document.getElementById('toastLogDuration')?.value || '1000', 10);
             const settings = {
+                autoCompareEnabled: document.getElementById('autoCompareEnabled')?.checked ?? false,
+                quickNavItems: normalizeQuickNavItems(readQuickNavSettingsFromUI()),
                 toastEnabled: document.getElementById('toastLogEnabled')?.checked ?? true,
                 toastDuration: Math.max(300, Math.min(5000, Number.isFinite(durationValue) ? durationValue : 1000))
             };
             localStorage.setItem(CONSOLE_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+            renderQuickNavBar();
         }
 
         function applyConsoleSettings() {
             const settings = getConsoleSettings();
+            const autoCompare = document.getElementById('autoCompareEnabled');
             const enabled = document.getElementById('toastLogEnabled');
             const duration = document.getElementById('toastLogDuration');
+            if (autoCompare) autoCompare.checked = Boolean(settings.autoCompareEnabled);
             if (enabled) enabled.checked = Boolean(settings.toastEnabled);
             if (duration) duration.value = settings.toastDuration;
+            renderQuickNavSettings();
+            renderQuickNavBar();
+        }
+
+        function getQuickNavItems() {
+            return normalizeQuickNavItems(getConsoleSettings().quickNavItems);
+        }
+
+        function readQuickNavSettingsFromUI() {
+            const container = document.getElementById('quickNavSettings');
+            if (!container) return getQuickNavItems();
+            return QUICK_NAV_DEFAULTS.map(item => ({
+                key: item.key,
+                visible: container.querySelector(`[data-nav-visible="${item.key}"]`)?.checked ?? item.visible,
+                label: container.querySelector(`[data-nav-label="${item.key}"]`)?.value?.trim() || item.label
+            }));
+        }
+
+        function renderQuickNavSettings() {
+            const container = document.getElementById('quickNavSettings');
+            if (!container) return;
+            const items = getQuickNavItems();
+            container.innerHTML = items.map(item => `
+                <div class="quick-nav-setting-row">
+                    <label class="quick-nav-setting-toggle">
+                        <input type="checkbox" data-nav-visible="${item.key}" ${item.visible ? 'checked' : ''} onchange="saveConsoleSettings()">
+                        <span>${escapeHTML(item.label)}</span>
+                    </label>
+                    <input
+                        type="text"
+                        value="${escapeHTML(item.label)}"
+                        data-nav-label="${item.key}"
+                        placeholder="导航名称"
+                        onchange="saveConsoleSettings()"
+                    >
+                </div>
+            `).join('');
+        }
+
+        function scrollToSection(sectionKey) {
+            const target = document.querySelector(`[data-section-key="${sectionKey}"]`);
+            if (!target) return;
+            target.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }
+
+        function renderQuickNavBar() {
+            const container = document.getElementById('quickNavBar');
+            if (!container) return;
+            const items = getQuickNavItems().filter(item => item.visible);
+            if (!items.length) {
+                container.innerHTML = '';
+                return;
+            }
+            container.innerHTML = `
+                <div class="quick-nav-list">
+                    ${items.map(item => `
+                        <button type="button" class="quick-nav-btn" onclick="scrollToSection('${item.key}')" title="${escapeHTML(item.label)}">
+                            ${escapeHTML(item.label)}
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function shouldAutoCompareAfterGeneration() {
+            return Boolean(getConsoleSettings().autoCompareEnabled);
         }
 
         function showFloatingLog(action, detail = '') {
@@ -1190,7 +1280,7 @@
                             <button class="type-card-main" type="button" aria-pressed="${selectedTypes.includes(type) ? 'true' : 'false'}">
                                 <span class="type-check"><i data-lucide="check"></i></span>
                                 <span>
-                                    <input id="question-type-${idx}" name="questionType${idx}" type="text" class="type-name-input" value="${escapeHTML(type)}" onclick="event.stopPropagation()" onchange="renameQuestionType(${idx}, this.value)" aria-label="题型名称">
+                                    <input id="question-type-${idx}" name="questionType${idx}" type="text" class="type-name-input" value="${escapeHTML(type)}" onclick="event.stopPropagation()" onchange="renameQuestionType(${idx}, this.value)" aria-label="题型名称" readonly>
                                     <span class="type-meta">
                                         <i data-lucide="layers-3"></i>
                                         ${typeCounts[type]} 个示例
@@ -1205,6 +1295,10 @@
                                 <button type="button" onclick="event.stopPropagation(); previewJSON(this.closest('.type-item').dataset.type)" title="预览示例">
                                     <i data-lucide="eye"></i>
                                     示例
+                                </button>
+                                <button type="button" onclick="event.stopPropagation(); toggleQuestionTypeEdit(${idx}, this)" title="编辑题型">
+                                    <i data-lucide="pencil"></i>
+                                    编辑
                                 </button>
                                 <button type="button" onclick="event.stopPropagation(); deleteQuestionType(${idx})" title="删除题型">
                                     <i data-lucide="trash-2"></i>
@@ -1256,18 +1350,62 @@
             addLog('新增题型', candidate);
         }
 
+        function toggleQuestionTypeEdit(index, button) {
+            const input = document.getElementById(`question-type-${index}`);
+            if (!input || !button) return;
+
+            const isReadonly = input.hasAttribute('readonly');
+            if (isReadonly) {
+                input.removeAttribute('readonly');
+                input.dataset.originalValue = input.value;
+                input.focus();
+                input.select();
+                button.innerHTML = '<i data-lucide="check"></i> 保存';
+                button.title = '保存题型';
+            } else {
+                renameQuestionType(index, input.value);
+                button.innerHTML = '<i data-lucide="pencil"></i> 编辑';
+                button.title = '编辑题型';
+            }
+
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
         function renameQuestionType(index, value) {
             const oldType = availableQuestionTypes[index];
             const newType = String(value || '').trim();
+            const input = document.getElementById(`question-type-${index}`);
             if (!newType) {
+                if (input) {
+                    input.value = oldType;
+                    input.setAttribute('readonly', 'readonly');
+                }
+                renderQuestionTypes();
+                return;
+            }
+            if (newType !== oldType && availableQuestionTypes.includes(newType)) {
+                if (input) {
+                    input.value = oldType;
+                    input.setAttribute('readonly', 'readonly');
+                }
+                addLog('编辑题型失败', `题型已存在: ${newType}`);
                 renderQuestionTypes();
                 return;
             }
             availableQuestionTypes[index] = newType;
             selectedTypes = selectedTypes.map(type => type === oldType ? newType : type);
             questionTypeExplanations[newType] = questionTypeExplanations[oldType] || '自定义题型';
+            if (oldType !== newType && Object.prototype.hasOwnProperty.call(questionTypeExplanations, oldType)) {
+                delete questionTypeExplanations[oldType];
+            }
             saveEditableQuestionTypes();
             setCookie('questionTypes', encrypt(JSON.stringify(selectedTypes)));
+            if (input) {
+                input.value = newType;
+                input.setAttribute('readonly', 'readonly');
+            }
             renderQuestionTypes();
             addLog('编辑题型', `${oldType} -> ${newType}`);
         }
@@ -1655,7 +1793,7 @@
             container.innerHTML = inputPairs.map(pair => `
                 <div class="input-pair">
                     <div class="input-header">
-                        <span style="font-size: 14px; color: #718096; font-weight: 600;">输入 #${pair.id + 1}</span>
+                        <button type="button" class="pair-link" onclick="jumpToOutput(${pair.id})" title="跳转到对应输出">输入 #${pair.id + 1}</button>
                         <span class="char-count" id="count-${pair.id}">${pair.text.length} 字</span>
                     </div>
                     <textarea id="input-${pair.id}" oninput="updateCharCount(${pair.id})" placeholder="请输入题目需求">${escapeHTML(pair.text)}</textarea>
@@ -1682,7 +1820,7 @@
             container.innerHTML = outputPairs.map((pair, idx) => `
                 <div class="output-pair">
                     <div class="output-pair-header">
-                        <span style="font-size: 14px; color: #718096; font-weight: 600;">输出 #${pair.id + 1} <span id="q-count-${pair.id}" style="color: #6366f1;"></span></span>
+                        <button type="button" class="pair-link" onclick="jumpToInput(${pair.id})" title="跳转到对应输入">输出 #${pair.id + 1} <span id="q-count-${pair.id}" style="color: #6366f1;"></span></button>
                         <div class="output-actions">
                             <button id="regen-${pair.id}" class="small" onclick="regenerateSingle(${pair.id})" ${batchGenerating && !isPairGenerating(pair.id) ? 'disabled' : ''}>
                                 <i data-lucide="refresh-cw"></i>
@@ -1703,9 +1841,11 @@
                         <div>
                             <div class="field-label">完整输出</div>
                             <div class="locked-output-toolbar">
-                                <button id="full-lock-${pair.id}" class="small" onclick="toggleFullOutputLock(${pair.id})" title="解锁完整输出">
-                                    <i data-lucide="lock"></i>
-                                    锁定
+                                <button id="full-edit-${pair.id}" class="small icon-only" onclick="toggleFullOutputLock(${pair.id})" title="编辑完整输出">
+                                    <i data-lucide="pencil"></i>
+                                </button>
+                                <button class="small danger icon-only" onclick="clearOutputPair(${pair.id})" title="删除该输出内容">
+                                    <i data-lucide="trash-2"></i>
                                 </button>
                             </div>
                             <textarea class="output" id="full-${pair.id}" oninput="updateFullOutputFromEdit(${pair.id})" readonly placeholder="等待生成...">${pair.full ? escapeHTML(pair.full) : ''}</textarea>
@@ -1724,16 +1864,38 @@
             }
         }
 
+        function jumpToInput(pairId) {
+            const inputEl = document.getElementById(`input-${pairId}`);
+            if (!inputEl) return;
+            inputEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+            inputEl.focus();
+        }
+
+        function jumpToOutput(pairId) {
+            const outputEl = document.getElementById(`editable-${pairId}`) || document.getElementById(`full-${pairId}`);
+            if (!outputEl) return;
+            outputEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+            outputEl.focus();
+        }
+
         function toggleFullOutputLock(pairId) {
             const textarea = document.getElementById(`full-${pairId}`);
-            const button = document.getElementById(`full-lock-${pairId}`);
+            const button = document.getElementById(`full-edit-${pairId}`);
             if (!textarea || !button) return;
             textarea.readOnly = !textarea.readOnly;
             button.innerHTML = textarea.readOnly
-                ? '<i data-lucide="lock"></i> 锁定'
-                : '<i data-lucide="unlock"></i> 可编辑';
-            button.title = textarea.readOnly ? '解锁完整输出' : '锁定完整输出';
+                ? '<i data-lucide="pencil"></i>'
+                : '<i data-lucide="check"></i>';
+            button.title = textarea.readOnly ? '编辑完整输出' : '保存并锁定完整输出';
             if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function clearOutputPair(pairId) {
+            updateOutputFull(pairId, '');
+            updateOutputEditable(pairId, '');
+            setGenerationProgress(pairId, {status: 'idle', detail: '等待'});
+            validateJSON(pairId);
+            addLog(`清空输出 #${pairId + 1}`, '已删除当前输出内容');
         }
 
         function updateFullOutputFromEdit(pairId) {
@@ -2214,7 +2376,13 @@
                 updateGlobalGenerationControls();
                 if (activeGenerations.size === 0 && hasGeneratedOutput()) {
                     setExportButtonsDisabled(false);
-                    await generateFilesAndCompare();
+                    if (shouldAutoCompareAfterGeneration()) {
+                        await generateFilesAndCompare();
+                    } else {
+                        generateFileA();
+                        generateFileB();
+                        addLog('生成后处理', '已更新文件 A/B，自动对比未开启');
+                    }
                 }
             }
         }

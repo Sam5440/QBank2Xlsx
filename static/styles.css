@@ -378,18 +378,27 @@
         }
 
         .export-source-line {
-            display: inline-flex;
+            display: flex;
             align-items: center;
             gap: 8px;
             color: var(--text-secondary);
-            font-size: 13px;
+            font-size: 15px;
             font-weight: 700;
+            line-height: 1.5;
+            min-height: 40px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: color-mix(in srgb, var(--surface) 88%, white);
+            white-space: normal;
+            word-break: break-word;
         }
 
         .export-source-line svg {
-            width: 16px;
-            height: 16px;
+            width: 18px;
+            height: 18px;
             color: var(--primary);
+            flex: 0 0 auto;
         }
 
         .export-button-row {
@@ -1600,6 +1609,11 @@
             line-height: 1.2;
         }
 
+        .type-name-input[readonly] {
+            cursor: default;
+            pointer-events: none;
+        }
+
         .type-name-input:focus {
             box-shadow: none;
             outline: none;
@@ -1957,7 +1971,7 @@
             width: 100%;
             max-width: 1780px;
             margin: 0 auto;
-            padding: 16px;
+            padding: 96px 16px 16px;
             background: transparent;
             border-radius: 0;
             box-shadow: none;
@@ -1965,20 +1979,72 @@
         }
 
         body.theme-shadcn .header {
-            position: sticky;
-            top: 0;
-            z-index: 60;
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            z-index: 80;
+            transform: translateX(-50%);
             display: flex;
             align-items: center;
-            gap: 12px;
+            justify-content: space-between;
+            gap: 16px;
+            width: min(calc(100vw - 32px), 1748px);
             min-height: 64px;
-            margin: 0 0 16px;
             padding: 12px 16px;
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
             background: rgba(255, 255, 255, 0.92);
             box-shadow: var(--shadow-sm);
             backdrop-filter: blur(16px);
+        }
+
+        body.theme-shadcn .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 0 0 auto;
+        }
+
+        body.theme-shadcn .header-nav {
+            display: flex;
+            justify-content: flex-end;
+            min-width: 0;
+            flex: 1 1 auto;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding-bottom: 2px;
+        }
+
+        body.theme-shadcn .quick-nav-list {
+            display: flex;
+            flex-wrap: nowrap;
+            justify-content: flex-end;
+            gap: 8px;
+            width: max-content;
+            min-width: 100%;
+        }
+
+        body.theme-shadcn .quick-nav-btn {
+            flex: 0 0 auto;
+            min-width: 88px;
+            max-width: 140px;
+            min-height: 34px;
+            padding: 7px 10px;
+            border: 1px solid var(--border) !important;
+            border-radius: 999px;
+            background: var(--surface) !important;
+            color: var(--text-primary) !important;
+            font-size: 12px;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        body.theme-shadcn .quick-nav-btn:hover {
+            background: var(--muted) !important;
+            border-color: #D4D4D8 !important;
         }
 
         body.theme-shadcn .header-icon {
@@ -2012,6 +2078,8 @@
             grid-template-columns: minmax(360px, var(--sidebar-width)) minmax(0, 1fr);
             gap: 16px;
             align-items: start;
+            height: calc(100vh - 112px);
+            min-height: 0;
         }
 
         body.theme-shadcn .workspace-column {
@@ -2019,12 +2087,21 @@
             flex-direction: column;
             gap: 16px;
             min-width: 0;
+            min-height: 0;
         }
 
         body.theme-shadcn .setup-column {
             position: static;
-            max-height: none;
-            overflow: visible;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 3px;
+        }
+
+        body.theme-shadcn .output-column {
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
             padding-right: 3px;
         }
 
@@ -2033,6 +2110,7 @@
         }
 
         body.theme-shadcn .setup-column::-webkit-scrollbar,
+        body.theme-shadcn .output-column::-webkit-scrollbar,
         body.theme-shadcn .compare-markdown::-webkit-scrollbar,
         body.theme-shadcn .compare-chat-thread::-webkit-scrollbar,
         body.theme-shadcn .output::-webkit-scrollbar {
@@ -2041,6 +2119,7 @@
         }
 
         body.theme-shadcn .setup-column::-webkit-scrollbar-thumb,
+        body.theme-shadcn .output-column::-webkit-scrollbar-thumb,
         body.theme-shadcn .compare-markdown::-webkit-scrollbar-thumb,
         body.theme-shadcn .compare-chat-thread::-webkit-scrollbar-thumb,
         body.theme-shadcn .output::-webkit-scrollbar-thumb {
@@ -2403,7 +2482,7 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            min-height: 116px;
+            min-height: 124px;
             padding: 11px;
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
@@ -2513,22 +2592,19 @@
 
         body.theme-shadcn .action-btns {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 8px;
             border-left: 0;
         }
 
         body.theme-shadcn .action-btns button {
             min-width: 0;
-            min-height: 34px;
+            min-height: 30px;
             justify-content: center;
-            padding: 7px 8px;
+            padding: 5px 6px;
             border-radius: var(--radius-md);
-            font-size: 12px;
-        }
-
-        body.theme-shadcn .action-btns button:first-child {
-            border-left: 1px solid var(--border);
+            font-size: 11px;
+            gap: 4px;
         }
 
         body.theme-shadcn .notice-tip {
@@ -2566,6 +2642,23 @@
             font-weight: 500;
         }
 
+        body.theme-shadcn .pair-link {
+            min-height: auto;
+            padding: 0;
+            border: 0;
+            background: transparent !important;
+            color: #718096 !important;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        body.theme-shadcn .pair-link:hover {
+            background: transparent !important;
+            border-color: transparent !important;
+            color: var(--primary) !important;
+            text-decoration: underline;
+        }
+
         body.theme-shadcn .input-actions,
         body.theme-shadcn .actions,
         body.theme-shadcn .output-actions {
@@ -2579,13 +2672,25 @@
         }
 
         body.theme-shadcn .actions {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
             margin-top: 0;
             padding: 12px;
             position: relative;
-            overflow: hidden;
+            overflow: visible;
             background: linear-gradient(135deg, var(--section-tint, var(--card)) 0%, var(--card) 46%);
             border-color: color-mix(in srgb, var(--section-accent, var(--border)) 28%, var(--border));
-            justify-content: flex-end;
+            justify-content: flex-start;
+            gap: 12px;
+        }
+
+        body.theme-shadcn .export-button-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
         }
 
         body.theme-shadcn .output-grid,
@@ -2593,6 +2698,18 @@
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             gap: 12px;
+        }
+
+        body.theme-shadcn .locked-output-toolbar {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 7px;
+        }
+
+        body.theme-shadcn button.icon-only {
+            min-width: 30px;
+            min-height: 30px;
+            padding: 6px;
         }
 
         body.theme-shadcn .output {
@@ -2741,6 +2858,40 @@
             justify-content: space-between;
             gap: 10px;
             margin-bottom: 10px;
+        }
+
+        body.theme-shadcn .quick-nav-settings {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        body.theme-shadcn .quick-nav-setting-row {
+            display: grid;
+            grid-template-columns: minmax(0, 170px) minmax(0, 1fr);
+            gap: 10px;
+            align-items: center;
+        }
+
+        body.theme-shadcn .quick-nav-setting-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        body.theme-shadcn .quick-nav-setting-toggle span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        body.theme-shadcn .quick-nav-setting-row input[type="text"] {
+            min-height: 34px;
+            font-size: 12px;
         }
 
         body.theme-shadcn .compare-chat-thread {
@@ -2949,7 +3100,7 @@
 
         @media (max-width: 1180px) {
             body.theme-shadcn .container {
-                padding: 12px;
+                padding: 96px 12px 12px;
             }
 
             body.theme-shadcn .workspace-grid {
@@ -2970,13 +3121,16 @@
 
         @media (max-width: 760px) {
             body.theme-shadcn .container {
-                padding: 10px;
+                padding: 92px 10px 10px;
             }
 
             body.theme-shadcn .header {
-                position: static;
+                top: 10px;
+                width: calc(100vw - 20px);
                 min-height: 56px;
                 padding: 10px 12px;
+                align-items: flex-start;
+                flex-direction: column;
             }
 
             body.theme-shadcn h1 {
@@ -2992,6 +3146,20 @@
             body.theme-shadcn .chat-input-row {
                 grid-template-columns: 1fr;
                 align-items: stretch;
+            }
+
+            body.theme-shadcn .header-nav,
+            body.theme-shadcn .quick-nav-list {
+                justify-content: flex-start;
+            }
+
+            body.theme-shadcn .quick-nav-list {
+                flex-wrap: wrap;
+                width: 100%;
+            }
+
+            body.theme-shadcn .quick-nav-btn {
+                max-width: none;
             }
 
             body.theme-shadcn .type-picker-actions,
@@ -3025,6 +3193,10 @@
 
             body.theme-shadcn .actions {
                 justify-content: flex-start;
+            }
+
+            body.theme-shadcn .quick-nav-setting-row {
+                grid-template-columns: 1fr;
             }
         }
 
