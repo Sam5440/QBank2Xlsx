@@ -4,10 +4,11 @@ import asyncio
 import json
 import time
 import httpx
-import ai_debug
-from utils import load_system_prompt
-from config import DIRECTORY_EXTRACTION_PROMPT, FILENAME_GENERATION_PROMPT, COMPARE_PROMPT
-from header_utils import get_question_type
+from . import ai_debug
+from .config import DIRECTORY_EXTRACTION_PROMPT, FILENAME_GENERATION_PROMPT, COMPARE_PROMPT
+from .header_utils import get_question_type
+from .paths import DEMO_QUESTIONS_PATH
+from .utils import load_system_prompt
 
 
 def format_exception(e):
@@ -174,7 +175,7 @@ async def stream_chat_completion(kind, api_url, api_key, model, messages, *, tim
 
 
 def build_question_generation_prompt(question_types, user_input, system_prompt_override, directory):
-    with open('demo_questions.json', 'r', encoding='utf-8') as f:
+    with open(DEMO_QUESTIONS_PATH, 'r', encoding='utf-8') as f:
         demo_data = json.load(f)
 
     examples_text = ""

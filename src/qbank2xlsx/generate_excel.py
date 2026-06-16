@@ -8,7 +8,8 @@ import json
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
-from header_utils import HEADERS, match_header
+from .header_utils import HEADERS, match_header
+from .paths import DEMO_QUESTIONS_PATH, OUTPUTS_DIR
 
 
 def load_json_data(json_file):
@@ -125,8 +126,9 @@ def adjust_column_width(ws):
 
 if __name__ == "__main__":
     # 使用示例
-    json_file = "demo_questions.json"  # 输入的JSON文件
-    output_file = "generated_exam.xlsx"  # 输出的Excel文件
+    json_file = DEMO_QUESTIONS_PATH  # 输入的JSON文件
+    OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+    output_file = OUTPUTS_DIR / "generated_exam.xlsx"  # 输出的Excel文件
 
     try:
         create_excel_from_json(json_file, output_file)

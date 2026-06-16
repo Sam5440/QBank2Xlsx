@@ -6,22 +6,29 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import asyncio
 import os
+import sys
 import time
 import json
 import base64
 import uuid
+from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric import padding
-from utils import get_or_create_key, get_or_create_transport_private_key, get_transport_public_key_pem
-from ai_service import generate_questions_stream, extract_directory, generate_filename, match_question_types, compare_files_stream, compare_chat_stream, test_api_connection
-import ai_debug
-from excel_service import convert_questions, export_to_excel, export_to_word, parse_excel_to_questions
-from logger import log_api_call
-from header_utils import get_question_type
+
+ROOT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT_DIR / "src"))
+
+from qbank2xlsx import ai_debug
+from qbank2xlsx.ai_service import generate_questions_stream, extract_directory, generate_filename, match_question_types, compare_files_stream, compare_chat_stream, test_api_connection
+from qbank2xlsx.excel_service import convert_questions, export_to_excel, export_to_word, parse_excel_to_questions
+from qbank2xlsx.header_utils import get_question_type
+from qbank2xlsx.logger import log_api_call
+from qbank2xlsx.paths import DEMO_QUESTIONS_PATH, WEB_DIR
+from qbank2xlsx.utils import get_or_create_key, get_or_create_transport_private_key, get_transport_public_key_pem
 
 app = FastAPI()
 BATCH_STREAM_JOBS = {}
 BATCH_STREAM_JOB_TTL_SECONDS = 3600
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
 
 
 @app.middleware("http")
@@ -220,7 +227,7 @@ async def run_batch_stream_job(job_id, api_url, api_key, model, question_types, 
                 editable = ""
                 question_count = 0
                 if state["full"]:
-                    from ai_service import extract_json_content
+                    from qbank2xlsx.ai_service import extract_json_content
                     editable = extract_json_content(state["full"])
                     if editable:
                         try:
@@ -354,7 +361,7 @@ async def handle_ai_request(ai_func, req: AIRequest, result_key: str, error_msg:
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    with open('index.html', 'r', encoding='utf-8') as f:
+    with open(WEB_DIR / 'index.html', 'r', encoding='utf-8') as f:
         return f.read()
 
 
@@ -366,13 +373,13 @@ async def favicon():
 @app.get("/themes.js")
 async def get_themes_js():
     """Serve themes.js static file"""
-    return FileResponse('themes.js', media_type='application/javascript')
+    return FileResponse(WEB_DIR / 'static' / 'themes.js', media_type='application/javascript')
 
 
 @app.get("/theme-test.html", response_class=HTMLResponse)
 async def theme_test():
     """Serve theme test page"""
-    with open('theme-test.html', 'r', encoding='utf-8') as f:
+    with open(WEB_DIR / 'theme-test.html', 'r', encoding='utf-8') as f:
         return f.read()
 
 
@@ -394,7 +401,7 @@ async def get_transport_public_key():
 
 @app.get("/api/system-prompt")
 async def get_system_prompt():
-    from utils import load_system_prompt
+    from qbank2xlsx.utils import load_system_prompt
     return {"systemPrompt": load_system_prompt()}
 
 
@@ -402,7 +409,7 @@ async def get_system_prompt():
 async def get_question_types():
     import json
     try:
-        with open('demo_questions.json', 'r', encoding='utf-8') as f:
+        with open(DEMO_QUESTIONS_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
             types = []
             seen_types = set()

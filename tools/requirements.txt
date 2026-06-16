@@ -4,3 +4,4 @@ hypercorn
 anthropic
 openpyxl
 cryptography
+typing_extensions>=4.15.0

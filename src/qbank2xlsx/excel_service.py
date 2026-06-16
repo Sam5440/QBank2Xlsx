@@ -10,13 +10,13 @@ from xml.sax.saxutils import escape
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
-from generate_excel import create_excel_from_json
-from header_utils import match_header
+from .generate_excel import create_excel_from_json
+from .header_utils import match_header
+from .paths import TEMPLATE_DIR
 
 
 TEMPLATE_STANDARD = "standard"
 TEMPLATE_ANSWER_HELPER = "answer_helper"
-TEMPLATE_DIR = "templates"
 ANSWER_HELPER_TEMPLATE_PATH = os.path.join(TEMPLATE_DIR, "题目导入模板(答题帮手).xlsx")
 WORD_EXPORT_TEMPLATE_PATH = os.path.join(TEMPLATE_DIR, "Word导出模板_考试答案解析版.docx")
 ANSWER_HELPER_HEADERS = [

@@ -18,7 +18,7 @@ fi
 
 "$PYTHON_BIN" -m pip show fastapi hypercorn > /dev/null 2>&1 || {
     echo "正在安装依赖..."
-    "$PYTHON_BIN" -m pip install -r requirements.txt
+    "$PYTHON_BIN" -m pip install -r tools/requirements.txt
 }
 
 echo "[2/2] 启动服务器..."

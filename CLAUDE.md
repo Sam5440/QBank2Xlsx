@@ -1,139 +1,120 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file gives Claude Code repository-specific guidance for QBank2Xlsx.
 
 ## Project Overview
 
-QBank2Xlsx is an AI-powered exam question bank management system with a FastAPI backend and web UI. It generates exam questions using AI models (OpenAI, Claude, etc.) and exports them to Excel format. The system handles 9 Chinese question types with streaming generation and real-time preview.
+QBank2Xlsx is a FastAPI-based question bank generator with a browser UI. It calls AI-compatible chat/completions APIs to generate Chinese exam questions, previews the streamed result, and exports questions to Excel or Word templates.
 
-## Running the Application
+The application supports these question types: 单选题, 多选题, 不定项选择题, 判断题, 填空题, 简答题, 排序题, 计算题, 论述题.
 
-### Start Server (Windows)
+## Repository Layout
+
+Keep the repository root clean. Root-level files should be limited to the application entry point, launch scripts, README, and tool guidance files.
+
+```text
+app.py                    FastAPI entry point
+start..command            macOS/Linux launcher
+start.bat                 Windows launcher
+README.md                 User documentation
+CLAUDE.md                 Claude Code guidance
+
+src/qbank2xlsx/           Python application package
+web/                      HTML pages and static frontend assets
+data/                     Stable example and seed data
+resources/templates/      Excel and Word export templates
+runtime/                  Local runtime state: keys, logs, optional prompts
+outputs/                  Generated output files
+tools/                    Maintenance scripts and dependency manifest
+docs/                     Secondary documentation
+```
+
+Important paths:
+
+- Dependencies: `tools/requirements.txt`
+- Main UI: `web/index.html`
+- Frontend assets: `web/static/app.js`, `web/static/styles.css`, `web/static/themes.js`
+- Demo questions: `data/demo_questions.json`
+- Export templates: `resources/templates/`
+- Runtime logs: `runtime/logs/api.log`
+- Runtime keys: `runtime/key.txt`, `runtime/transport_private_key.pem`
+- Optional prompt override: `runtime/system_prompt.txt`
+
+## Running The Application
+
+Use the launch scripts from the repository root:
+
 ```bash
+./start..command
+```
+
+```bat
 start.bat
 ```
-Auto-installs dependencies, starts HTTP/2 server on port 8111, opens browser.
 
-### Start Server (Manual)
+Manual startup:
+
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# HTTP/1.1 mode (max 6 concurrent connections)
-python app.py
-
-# HTTP/2 mode (unlimited concurrent, recommended)
-python app.py --http2
+python3 -m pip install -r tools/requirements.txt
+python3 app.py --http2
 ```
 
-Access at: `http://localhost:8111`
+HTTP/2 mode uses Hypercorn and is the recommended local mode. The app listens on port `8111`.
 
-### Standalone Excel Generation
+For HTTP/1.1 fallback:
+
 ```bash
-python generate_excel.py
+python3 app.py
 ```
-Converts `demo_questions.json` → `generated_exam.xlsx`
+
+Access the app at `http://localhost:8111`.
 
 ## Architecture
 
-### Core Components
+`app.py` is intentionally kept as the root entry point. It adds `src/` to `sys.path`, mounts `/static` from `web/static`, serves `web/index.html`, and exposes the API routes.
 
-**app.py** - FastAPI application with middleware for logging
-- API endpoints for generation, export, directory extraction, filename generation, file comparison
-- Middleware logs all requests/responses to `log/` directory
-- Supports both HTTP/1.1 (uvicorn) and HTTP/2 (hypercorn) modes
+`src/qbank2xlsx/ai_service.py` owns AI calls and streaming behavior. It builds prompts from `data/demo_questions.json`, records debug metadata through `ai_debug.py`, and supports generation, directory extraction, filename generation, API testing, and comparison chat.
 
-**ai_service.py** - AI integration layer
-- `generate_questions_stream()`: Streams question generation from AI with real-time output
-- `extract_directory()`: Extracts chapter/section structure from user input
-- `generate_filename()`: Creates meaningful filenames based on content
-- `compare_files_stream()`: AI-powered comparison of generated vs. original requirements
-- Uses `demo_questions.json` to provide format examples to AI based on selected question types
+`src/qbank2xlsx/excel_service.py` owns Excel/Word import and export behavior. It reads templates from `resources/templates/` and normalizes between the standard template and the 答题帮手 template.
 
-**excel_service.py** - Excel export functionality
-- Converts JSON questions to Excel with styling (宋体 font, borders, colors)
-- Creates temporary files for download
+`src/qbank2xlsx/paths.py` is the canonical place for filesystem paths. When adding a new persistent file location, add it there instead of hardcoding root-relative strings in services.
 
-**config.py** - Prompt templates
-- `DEFAULT_SYSTEM_PROMPT`: Main template for question generation (uses `{{json_example}}` and `{{TOP}}` placeholders)
-- `DIRECTORY_EXTRACTION_PROMPT`, `FILENAME_GENERATION_PROMPT`, `COMPARE_PROMPT`
+`src/qbank2xlsx/logger.py` writes request logs to `runtime/logs/api.log`. `src/qbank2xlsx/utils.py` manages local encryption keys and the optional prompt override in `runtime/`.
 
-**header_utils.py** - Question type detection
-- `get_question_type()`: Extracts question type from various field name formats
+## Data Flow
 
-**logger.py** - Request/response logging
-- Logs API calls to timestamped files in `log/` directory
+1. The user configures API URL, API key, and model in the web UI.
+2. The frontend encrypts credentials for transport and stores local UI settings in the browser.
+3. The backend loads examples from `data/demo_questions.json` for the selected question types.
+4. `ai_service.py` streams generated content back to `web/static/app.js`.
+5. The frontend extracts JSON, previews questions, and allows edits.
+6. `excel_service.py` exports the final questions to Excel or Word.
 
-**utils.py** - Utility functions
-- `get_or_create_key()`: Manages encryption key for API key storage
-- `load_system_prompt()`: Loads system prompt from file or uses default
+## Question Data Contract
 
-**index.html** - Single-page web UI
-- Real-time streaming display of generated questions
-- API key encryption using CryptoJS (AES)
-- Question editing, preview, and export functionality
+The standard schema is a JSON object with a `questions` array. Each question should use the project headers, especially:
 
-### Data Flow
+- `题干（必填）`
+- `题型 （必填）`
+- `正确答案\n（必填）`
+- `解析\n（勿删）`
+- `章节\n（勿删）`
+- `难度`
 
-1. User configures API settings (URL, key, model) in web UI → encrypted and stored in localStorage
-2. User selects question types → system loads matching examples from `demo_questions.json`
-3. User inputs requirements → optionally extracts directory structure via AI
-4. Click "Generate" → `ai_service.py` builds prompt with examples and streams to frontend
-5. Frontend parses JSON from AI response and displays questions in real-time
-6. Click "Export" → `excel_service.py` converts to Excel with proper formatting
+Choice options use `选项 A` through `选项H\n(勿删)`. `data/demo_questions.json` must include at least one valid example per supported question type because it drives both UI samples and AI prompt examples.
 
-### Question Type System
+Answer conventions:
 
-The system supports 9 question types (题型):
-- 单选题 (single choice), 多选题 (multiple choice), 不定项选择题 (uncertain choice)
-- 判断题 (true/false), 填空题 (fill-in-blank), 简答题 (short answer)
-- 排序题 (sorting), 计算题 (calculation), 论述题 (essay)
+- Choice answers use option letters such as `A` or `ABCD`.
+- 判断题 uses `A` for true and `B` for false in the standard format.
+- 排序题 uses an ordered letter sequence such as `DBAC`.
+- Subjective answers go in `正确答案\n（必填）`.
 
-**Critical**: `demo_questions.json` must contain at least one example of each question type. The system uses `get_question_type()` to match questions by their "题型" field value.
+## Development Rules
 
-## Data Schema
-
-14-column structure (3 required fields):
-1. **题干（必填）** - Question text (required)
-2. **题型 （必填）** - Question type (required)
-3-10. **选项 A-H** - Options A through H (E-H marked "勿删")
-11. **正确答案（必填）** - Correct answer (required)
-12. **解析（勿删）** - Explanation
-13. **章节（勿删）** - Chapter/section
-14. **难度** - Difficulty: 易, 偏易, 适中, 难
-
-### Answer Format by Type
-- Single/multiple/uncertain choice: Letter(s) like "A" or "ABCD"
-- True/False: "A" (true) or "B" (false)
-- Fill-in-blank: Answer in 选项 A or 正确答案
-- Short answer/calculation/essay: Answer in 正确答案
-- Sorting: Letter sequence like "DBAC"
-
-### JSON Structure
-```json
-{
-  "questions": [
-    {
-      "题干（必填）": "question text",
-      "题型 （必填）": "单选题",
-      "选项 A": "option text",
-      "正确答案（必填）": "A",
-      "难度": "适中"
-    }
-  ]
-}
-```
-
-## Key Implementation Notes
-
-- **Port**: Default is 8111 (not 8000 as mentioned in some docs)
-- **Encryption**: API keys encrypted client-side with AES before localStorage storage
-- **Logging**: All API calls logged to `log/YYYY-MM-DD.log` with request/response bodies
-- **Excel styling**: Header row light blue (#B4C7E7), 宋体 font size 11, borders on all cells
-- **Question type detection**: Handles variations in field names (spaces, newlines in "题型 （必填）")
-- **Demo data**: `demo_questions.json` serves dual purpose: UI preview and AI format examples
-
-## Frontend Change Rule
-
-- When changing `index.html`, `static/app.js`, or `static/styles.css`, always bump the version query string used by the static asset links in `index.html` such as `/static/app.js?v=...` and `/static/styles.css?v=...`.
-- Purpose: avoid browser cache causing the user to see stale UI after frontend edits on port `8111`.
+- Prefer package imports under `qbank2xlsx.*`; avoid importing sibling modules by bare filename.
+- Do not hardcode paths like `demo_questions.json`, `templates`, `log`, or `key.txt`; use `src/qbank2xlsx/paths.py`.
+- Keep generated files in `outputs/` and runtime-only files in `runtime/`.
+- Do not move stable templates out of `resources/templates/`.
+- When changing `web/index.html`, `web/static/app.js`, or `web/static/styles.css`, bump the query string versions in `web/index.html` for `/static/app.js?v=...` and `/static/styles.css?v=...`.
+- After path or import changes, run `python3 -m compileall app.py src/qbank2xlsx`.

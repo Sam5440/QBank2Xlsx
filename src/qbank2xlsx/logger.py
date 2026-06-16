@@ -3,15 +3,17 @@
 import json
 import os
 from datetime import datetime
-from pathlib import Path
 
-LOG_DIR = Path(__file__).parent / "log"
+from .paths import RUNTIME_DIR
+
+LOG_DIR = RUNTIME_DIR / "logs"
 LOG_FILE = LOG_DIR / "api.log"
 MAX_ENTRIES = 50
 
 
 def log_api_call(method, path, status_code, request_body=None, response_body=None, duration_ms=0):
     """记录 API 调用到日志文件和控制台"""
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # 准备日志条目

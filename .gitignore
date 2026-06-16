@@ -1,13 +1,14 @@
-key.txt
-transport_private_key.pem
+runtime/key.txt
+runtime/transport_private_key.pem
 OtherRawData/
 __pycache__/
 *.pyc
 .claude/
 1
 output/
+outputs/
 demo_questions copy.json
-log/api.log
+runtime/logs/
 nul
 index copy.html
 1.json

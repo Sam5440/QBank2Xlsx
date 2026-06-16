@@ -8,7 +8,7 @@
 
 一款基于 AI 的智能题库生成与管理工具，支持多种题型，可将生成的题目导出为标准 Excel 格式。
 
-[English](README_EN.md) | 简体中文
+[English](docs/README_EN.md) | 简体中文
 
 </div>
 
@@ -129,7 +129,7 @@ cd QBank2Xlsx
 
 2. **安装依赖**
 ```bash
-pip install -r requirements.txt
+pip install -r tools/requirements.txt
 ```
 
 3. **启动服务器**
@@ -442,12 +442,12 @@ http://localhost:8000
 **使用方法**：
 
 ```bash
-python generate_excel.py
+PYTHONPATH=src python -m qbank2xlsx.generate_excel
 ```
 
 **默认配置**：
-- 输入文件：`demo_questions.json`
-- 输出文件：`generated_exam.xlsx`
+- 输入文件：`data/demo_questions.json`
+- 输出文件：`outputs/generated_exam.xlsx`
 
 **自定义使用**：
 
@@ -474,18 +474,18 @@ if __name__ == "__main__":
 ```
 QBank2Xlsx/
 ├── app.py                  # FastAPI 主应用
-├── ai_service.py          # AI 服务接口
-├── excel_service.py       # Excel 导出服务
-├── generate_excel.py      # Excel 生成脚本
-├── config.py              # 配置文件
-├── utils.py               # 工具函数
-├── index.html             # Web 前端界面
-├── demo_questions.json    # 示例题目数据
-├── requirements.txt       # Python 依赖
 ├── start.bat              # Windows 启动脚本
+├── start..command         # macOS/Linux 启动脚本
 ├── CLAUDE.md              # Claude AI 指导文档
 ├── README.md              # 项目说明（中文）
-└── README_EN.md           # 项目说明（英文）
+├── src/qbank2xlsx/        # 后端业务代码
+├── web/                   # 前端页面与静态资源
+├── data/                  # 示例题目数据
+├── resources/templates/   # Excel/Word 导出模板
+├── runtime/               # 本地日志、密钥、运行期配置
+├── outputs/               # 生成的导出文件
+├── tools/                 # 依赖清单与维护脚本
+└── docs/                  # 扩展文档
 ```
 
 ### 核心文件说明
@@ -526,7 +526,7 @@ Excel 导出服务，负责将 JSON 数据转换为 Excel 文件。
 **解决方案**：
 ```bash
 # 使用国内镜像源
-pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install -r tools/requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 或升级 pip
 python -m pip install --upgrade pip
@@ -575,9 +575,9 @@ pip install hypercorn
 **问题**：生成的题目缺少字段或格式错误
 
 **解决方案**：
-- 检查 `system_prompt.txt` 配置
+- 检查 `runtime/system_prompt.txt` 配置
 - 在使用界面中调整系统提示词
-- 参考 `demo_questions.json` 中的示例格式
+- 参考 `data/demo_questions.json` 中的示例格式
 
 ---
 
