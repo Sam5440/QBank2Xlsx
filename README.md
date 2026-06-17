@@ -488,6 +488,20 @@ QBank2Xlsx/
 └── docs/                  # 扩展文档
 ```
 
+### 目录职责
+
+- `src/qbank2xlsx/`：后端核心代码包，包含 AI 调用、Excel/Word 导出、日志、配置、路径常量等业务逻辑。
+- `web/`：前端页面和静态资源，`web/index.html` 是主界面，`web/static/` 放 JS/CSS/主题文件。
+- `data/`：稳定数据文件，目前是 `demo_questions.json`，用于题型示例、UI 示例和 AI prompt 示例。
+- `resources/templates/`：导出模板资源，放 Excel/Word 模板文件。
+- `runtime/`：本地运行期文件，例如密钥、日志、可选系统提示词覆盖；已被 Git 忽略。
+- `outputs/`：生成结果输出目录，例如导出的 Excel 文件；已被 Git 忽略。
+- `tools/`：维护工具和项目辅助文件，目前包含依赖清单 `requirements.txt` 和 changelog 脚本。
+- `docs/`：扩展文档，例如英文 README、主题指南、TODO。
+- `.git/`：Git 版本库内部数据，不需要手动改。
+
+根目录保留入口和启动相关文件：`app.py`、`start..command`、`start.bat`、`README.md`、`CLAUDE.md`、`.gitignore`。
+
 ### 核心文件说明
 
 #### app.py

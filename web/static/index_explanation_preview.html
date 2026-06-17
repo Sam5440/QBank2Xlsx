@@ -12,7 +12,313 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css?v=20260617-12">
+    <link rel="stylesheet" href="/static/styles.css?v=20260531-4">
+    <style>
+        .question-preview-section {
+            border-color: rgba(37, 99, 235, 0.22);
+        }
+
+        .question-preview-toolbar,
+        .question-preview-stats,
+        .question-preview-filters,
+        .question-preview-card-header,
+        .question-preview-actions,
+        .question-preview-meta,
+        .question-preview-answer-row,
+        .question-preview-options {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .question-preview-toolbar {
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .question-preview-stats {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .question-preview-stat {
+            min-height: 74px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--muted);
+            padding: 12px;
+        }
+
+        .question-preview-stat span {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .question-preview-stat strong {
+            color: var(--text-primary);
+            font-size: 22px;
+            line-height: 1;
+        }
+
+        .question-preview-filters {
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .question-preview-filter-group {
+            display: inline-flex;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--surface);
+        }
+
+        .question-preview-filter-group button {
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            min-height: 34px;
+        }
+
+        .question-preview-filter-group button.active {
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--primary);
+        }
+
+        .question-preview-search {
+            max-width: 320px;
+            min-height: 36px;
+        }
+
+        .question-preview-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .question-preview-card {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            overflow: hidden;
+        }
+
+        .question-preview-card.has-analysis {
+            border-color: rgba(22, 163, 74, 0.35);
+        }
+
+        .question-preview-card.is-loading {
+            border-color: rgba(37, 99, 235, 0.45);
+        }
+
+        .question-preview-card-header {
+            display: grid;
+            grid-template-columns: 44px minmax(0, 1fr) auto;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+            background: var(--muted);
+        }
+
+        .question-preview-index {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            background: rgba(37, 99, 235, 0.12);
+            color: var(--primary);
+            font-weight: 800;
+        }
+
+        .question-preview-stem {
+            color: var(--text-primary);
+            font-size: 15px;
+            font-weight: 800;
+            overflow-wrap: anywhere;
+        }
+
+        .question-preview-pill {
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            min-height: 23px;
+            padding: 3px 9px;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .question-preview-pill.type {
+            background: rgba(109, 40, 217, 0.1);
+            color: #6d28d9;
+        }
+
+        .question-preview-pill.chapter {
+            background: rgba(2, 132, 199, 0.1);
+            color: #0369a1;
+        }
+
+        .question-preview-pill.empty {
+            background: rgba(180, 83, 9, 0.12);
+            color: #b45309;
+        }
+
+        .question-preview-pill.ready {
+            background: rgba(22, 163, 74, 0.12);
+            color: #15803d;
+        }
+
+        .question-preview-card-body {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+            gap: 12px;
+            padding: 12px;
+        }
+
+        .question-preview-options {
+            align-items: stretch;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .question-preview-option {
+            min-height: 38px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 10px;
+            display: grid;
+            grid-template-columns: 24px minmax(0, 1fr);
+            gap: 8px;
+            background: var(--surface);
+        }
+
+        .question-preview-option.is-answer {
+            border-color: rgba(22, 163, 74, 0.4);
+            background: rgba(22, 163, 74, 0.08);
+        }
+
+        .question-preview-option-key {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            display: grid;
+            place-items: center;
+            background: var(--muted);
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .question-preview-option.is-answer .question-preview-option-key {
+            background: #15803d;
+            color: white;
+        }
+
+        .question-preview-answer-row {
+            margin-top: 10px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .question-preview-answer-row strong {
+            border-radius: 6px;
+            background: var(--muted);
+            color: var(--text-primary);
+            padding: 3px 8px;
+        }
+
+        .question-preview-analysis {
+            min-height: 128px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--muted);
+            padding: 11px;
+        }
+
+        .question-preview-analysis-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .question-preview-analysis-body {
+            color: var(--text-primary);
+            font-size: 14px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .question-preview-empty {
+            color: #b45309;
+        }
+
+        .question-preview-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(37, 99, 235, 0.25);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: questionPreviewSpin 750ms linear infinite;
+        }
+
+        @keyframes questionPreviewSpin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .question-preview-spinner {
+                animation-duration: 1ms;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .question-preview-stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .question-preview-card-header {
+                grid-template-columns: 44px minmax(0, 1fr);
+            }
+
+            .question-preview-actions {
+                grid-column: 1 / -1;
+                justify-content: flex-start;
+            }
+
+            .question-preview-card-body {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .question-preview-stats,
+            .question-preview-options {
+                grid-template-columns: 1fr;
+            }
+
+            .question-preview-toolbar,
+            .question-preview-filters {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .question-preview-search {
+                max-width: none;
+            }
+        }
+    </style>
 </head>
 <body class="theme-shadcn">
     <div class="container">
@@ -85,7 +391,7 @@
             <div class="template-convert-toolbar">
                 <label class="compact-field">
                     <span style="font-size: 13px; font-weight: 700; color: var(--text-secondary);">目标模板</span>
-                    <select id="convertTargetTemplate" onchange="scheduleSectionSummaries()">
+                    <select id="convertTargetTemplate">
                         <option value="standard">标准题库 JSON</option>
                         <option value="answer_helper">答题帮手 JSON</option>
                     </select>
@@ -96,7 +402,7 @@
                 </button>
             </div>
             <div class="field-label" style="margin-top: 12px;">导入/转换后的 JSON</div>
-            <textarea id="templateConvertOutput" placeholder="导入从本系统导出的 JSON 或 Excel 后，会转换为可再次导出的 JSON 结构。" oninput="scheduleSectionSummaries()"></textarea>
+            <textarea id="templateConvertOutput" placeholder="导入从本系统导出的 JSON 或 Excel 后，会转换为可再次导出的 JSON 结构。"></textarea>
             <div class="type-picker-actions" style="margin-top: 10px;">
                 <button class="small" onclick="applyTemplateConvertToFileA()">
                     <i data-lucide="file-symlink"></i>
@@ -121,7 +427,7 @@
                 </button>
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
-                <input type="text" id="outputFilename" value="exam_questions" placeholder="输出文件名" style="flex: 1;" oninput="scheduleSectionSummaries()">
+                <input type="text" id="outputFilename" value="exam_questions" placeholder="输出文件名" style="flex: 1;">
                 <button class="small" onclick="generateFilename()">
                     <i data-lucide="bot"></i>
                     AI 生成
@@ -144,7 +450,7 @@
                     提示词
                 </button>
             </div>
-            <textarea id="directory" placeholder="输入或提取目录结构..." style="min-height: 120px;" oninput="scheduleSectionSummaries()"></textarea>
+            <textarea id="directory" placeholder="输入或提取目录结构..." style="min-height: 120px;"></textarea>
         </div>
 
         <div class="section system-prompt-section" data-section-key="systemPrompt">
@@ -162,7 +468,7 @@
                     提示词
                 </button>
             </div>
-            <textarea id="systemPrompt" style="min-height: 240px; font-family: 'Courier New', monospace;" oninput="scheduleSectionSummaries()"></textarea>
+            <textarea id="systemPrompt" style="min-height: 240px; font-family: 'Courier New', monospace;"></textarea>
         </div>
 
         <div id="systemConsole" class="section system-console" data-section-key="console">
@@ -287,7 +593,7 @@
                 </button>
                 <label id="batchConcurrencyGroup" style="display: flex; align-items: center; gap: 8px;">
                     <span style="font-size: 14px; color: var(--text-primary);">并发数</span>
-                    <input type="number" id="batchConcurrency" value="20" min="1" max="100" step="1" style="width: 76px; padding: 8px 10px;" onchange="scheduleSectionSummaries()">
+                    <input type="number" id="batchConcurrency" value="20" min="1" max="100" step="1" style="width: 76px; padding: 8px 10px;">
                 </label>
                 <button class="small" onclick="openPromptEditor('generation')">
                     <i data-lucide="message-square-text"></i>
@@ -328,54 +634,58 @@
             <div class="error" id="error" style="display: none;"></div>
         </div>
 
-        <div id="questionAnalysisStatusBar" class="section question-analysis-section" data-section-key="questionAnalysis">
-            <div class="section-title">
-                <i data-lucide="list-checks"></i>
-                题目解析状态
-            </div>
-            <div class="question-analysis-neck">
-                <div class="question-analysis-title">
-                    <i data-lucide="clipboard-check"></i>
-                    <span>解析概览</span>
-                    <span class="question-analysis-source" id="questionAnalysisSource">暂无题目</span>
+        <div class="section question-preview-section" data-section-key="questionPreview">
+            <div class="question-preview-toolbar">
+                <div class="section-title" style="margin: 0;">
+                    <i data-lucide="list-checks"></i>
+                    完整题目展示列表
+                    <span class="question-preview-pill type">插入效果预览</span>
                 </div>
-                <div class="question-analysis-metrics" aria-label="题目解析统计">
-                    <span>题目 <strong id="questionAnalysisTotal">0</strong></span>
-                    <span>缺解析 <strong id="questionAnalysisMissing">0</strong></span>
-                    <span>已解析 <strong id="questionAnalysisReady">0</strong></span>
-                </div>
-                <div class="question-analysis-actions">
-                    <button class="small" type="button" onclick="refreshQuestionAnalysisBar()" title="刷新题目解析状态">
-                        <i data-lucide="refresh-cw"></i>
-                        刷新
-                    </button>
-                    <button class="small" type="button" onclick="openPromptEditor('explanation')" title="编辑解析生成提示词">
+                <div class="question-preview-actions">
+                    <button class="small" type="button" onclick="alert('正式实现时这里会打开解析生成提示词编辑器。')">
                         <i data-lucide="message-square-text"></i>
                         解析提示词
                     </button>
-                    <label class="question-analysis-concurrency" title="一键解析时同时请求的题目数量">
-                        <span>并发</span>
-                        <input id="questionAnalysisConcurrency" type="number" value="3" min="1" max="20" step="1" onchange="saveQuestionAnalysisConcurrency()" aria-label="解析并发数">
-                    </label>
-                    <button id="generateAllAnalysisBtn" class="small" type="button" onclick="generateAllQuestionAnalysis()" disabled title="为所有缺少解析的题目生成解析">
+                    <button class="small" type="button" onclick="syncPreviewQuestionsToFileA()">
+                        <i data-lucide="file-symlink"></i>
+                        同步到文件 A
+                    </button>
+                    <button id="previewGenerateAllBtn" type="button" onclick="generateAllPreviewAnalysis()">
                         <i data-lucide="wand-sparkles"></i>
-                        一键解析
+                        一键生成解析
                     </button>
                 </div>
             </div>
-            <div class="question-analysis-panel" id="questionAnalysisPanel">
-                <div class="question-analysis-toolbar">
-                    <div class="question-analysis-filter-group" aria-label="筛选题目">
-                        <button class="small active" type="button" data-analysis-filter="all" onclick="setQuestionAnalysisFilter('all')">全部</button>
-                        <button class="small" type="button" data-analysis-filter="missing" onclick="setQuestionAnalysisFilter('missing')">缺解析</button>
-                        <button class="small" type="button" data-analysis-filter="ready" onclick="setQuestionAnalysisFilter('ready')">已解析</button>
-                    </div>
-                    <input id="questionAnalysisSearch" class="question-analysis-search" type="search" placeholder="搜索题干、题型、章节" oninput="renderQuestionAnalysisBar()" aria-label="搜索题目">
+
+            <div class="question-preview-stats">
+                <div class="question-preview-stat">
+                    <span>题目总数</span>
+                    <strong id="previewTotalCount">0</strong>
                 </div>
-                <div class="question-analysis-list" id="questionAnalysisList">
-                    <div class="question-analysis-empty">暂无可展示的题目。生成文件 A 或生成题目后会在这里显示。</div>
+                <div class="question-preview-stat">
+                    <span>缺少解析</span>
+                    <strong id="previewMissingCount">0</strong>
+                </div>
+                <div class="question-preview-stat">
+                    <span>已生成解析</span>
+                    <strong id="previewReadyCount">0</strong>
+                </div>
+                <div class="question-preview-stat">
+                    <span>文件 A 同步</span>
+                    <strong id="previewSyncState">待同步</strong>
                 </div>
             </div>
+
+            <div class="question-preview-filters">
+                <div class="question-preview-filter-group" aria-label="筛选题目">
+                    <button class="small active" type="button" data-preview-filter="all" onclick="setPreviewFilter('all')">全部</button>
+                    <button class="small" type="button" data-preview-filter="missing" onclick="setPreviewFilter('missing')">缺解析</button>
+                    <button class="small" type="button" data-preview-filter="ready" onclick="setPreviewFilter('ready')">已解析</button>
+                </div>
+                <input id="previewSearchInput" class="question-preview-search" type="search" placeholder="搜索题干、题型、章节" oninput="renderPreviewQuestions()" aria-label="搜索题目">
+            </div>
+
+            <div class="question-preview-list" id="questionPreviewList"></div>
         </div>
 
         <div class="section compare-section" data-section-key="compare">
@@ -443,14 +753,14 @@
                             应用排序
                         </button>
                     </div>
-                    <textarea id="fileA" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..." oninput="scheduleSectionSummaries(); renderQuestionAnalysisBar()"></textarea>
+                    <textarea id="fileA" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..."></textarea>
                 </div>
                 <div>
                     <div class="field-label">
                         <i data-lucide="clipboard-list" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
                         文件 B（原始需求）
                     </div>
-                    <textarea id="fileB" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..." oninput="scheduleSectionSummaries()"></textarea>
+                    <textarea id="fileB" style="min-height: 200px; font-family: 'Courier New', monospace;" placeholder="点击下方按钮生成..."></textarea>
                 </div>
             </div>
             <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
@@ -507,7 +817,7 @@
             </div>
         </div>
 
-        <div class="section actions export-section" data-section-key="export">
+        <div class="actions" data-section-key="export">
             <div class="export-source-line">
                 <i data-lucide="database"></i>
                 数据来源：AB 对比审核内的文件 A
@@ -515,7 +825,7 @@
             <div class="export-button-row">
                 <label class="export-template-picker">
                     <span style="font-size: 13px; font-weight: 700; color: var(--text-secondary);">Excel 模板</span>
-                    <select id="excelTemplate" onchange="scheduleSectionSummaries()">
+                    <select id="excelTemplate">
                         <option value="standard">标准题库模板</option>
                         <option value="answer_helper">答题帮手模板</option>
                     </select>
@@ -599,6 +909,255 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=20260617-5"></script>
+    <script src="/static/app.js?v=20260531-4"></script>
+    <script>
+        const previewQuestions = [
+            {
+                stem: '食醋是什么味道的？',
+                type: '单选题',
+                chapter: '第一单元',
+                difficulty: '易',
+                answer: 'A',
+                options: {A: '酸', B: '甜', C: '苦', D: '辣'},
+                analysis: null,
+                generatedAnalysis: '食醋的主要呈味物质是醋酸，因此典型味道是酸味。选项 A 正确，其余选项不符合食醋的基本味觉特征。'
+            },
+            {
+                stem: '一年中有几个季节？',
+                type: '多选题',
+                chapter: '第一单元/第一节',
+                difficulty: '偏易',
+                answer: 'ABCD',
+                options: {A: '春', B: '夏', C: '秋', D: '冬'},
+                analysis: null,
+                generatedAnalysis: '通常一年分为春、夏、秋、冬四个季节，因此 A、B、C、D 均为正确答案。'
+            },
+            {
+                stem: '是《红楼梦》中的人物有（   ）',
+                type: '不定项选择题',
+                chapter: '第一单元/第二节',
+                difficulty: '适中',
+                answer: 'ABCD',
+                options: {A: '王熙凤', B: '贾宝玉', C: '林黛玉', D: '薛宝钗', E: '貂蝉'},
+                analysis: null,
+                generatedAnalysis: '王熙凤、贾宝玉、林黛玉、薛宝钗均为《红楼梦》人物；貂蝉不是《红楼梦》人物，因此选 ABCD。'
+            },
+            {
+                stem: '荔枝多吃上火？',
+                type: '判断题',
+                chapter: '生活常识',
+                difficulty: '难',
+                answer: 'A',
+                options: {A: '对', B: '错'},
+                analysis: null,
+                generatedAnalysis: '从常见生活经验和中医饮食认知看，荔枝性温，过量食用可能引起口干、咽痛等不适，因此判断为对。'
+            },
+            {
+                stem: '中国的情人节是哪一天？',
+                type: '简答题',
+                chapter: '传统节日',
+                difficulty: '适中',
+                answer: '七夕，七月初七',
+                options: {},
+                analysis: null,
+                generatedAnalysis: '中国传统语境中的情人节通常指七夕节，时间为农历七月初七，源于牛郎织女传说。'
+            }
+        ];
+
+        let previewFilter = 'all';
+        let previewSynced = false;
+
+        function previewEscapeHTML(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function hasPreviewAnalysis(question) {
+            return Boolean(question.analysis && String(question.analysis).trim());
+        }
+
+        function previewStatusHTML(question) {
+            if (question.loading) {
+                return '<span class="question-preview-pill type"><span class="question-preview-spinner"></span>生成中</span>';
+            }
+            if (hasPreviewAnalysis(question)) {
+                return '<span class="question-preview-pill ready"><i data-lucide="check-circle-2"></i>已解析</span>';
+            }
+            return '<span class="question-preview-pill empty"><i data-lucide="circle-alert"></i>待生成</span>';
+        }
+
+        function previewOptionHTML(question) {
+            const entries = Object.entries(question.options || {});
+            if (!entries.length) {
+                return `<div class="question-preview-answer-row"><span>简答题答案</span><strong>${previewEscapeHTML(question.answer)}</strong></div>`;
+            }
+            const answer = String(question.answer || '');
+            return `<div class="question-preview-options">${entries.map(([key, value]) => `
+                <div class="question-preview-option ${answer.includes(key) ? 'is-answer' : ''}">
+                    <span class="question-preview-option-key">${previewEscapeHTML(key)}</span>
+                    <span>${previewEscapeHTML(value)}</span>
+                </div>
+            `).join('')}</div>`;
+        }
+
+        function getVisiblePreviewQuestions() {
+            const query = (document.getElementById('previewSearchInput')?.value || '').trim().toLowerCase();
+            return previewQuestions
+                .map((question, index) => ({question, index}))
+                .filter(({question}) => {
+                    if (previewFilter === 'missing' && hasPreviewAnalysis(question)) return false;
+                    if (previewFilter === 'ready' && !hasPreviewAnalysis(question)) return false;
+                    if (!query) return true;
+                    return [question.stem, question.type, question.chapter, question.difficulty]
+                        .join(' ')
+                        .toLowerCase()
+                        .includes(query);
+                });
+        }
+
+        function renderPreviewQuestions() {
+            const ready = previewQuestions.filter(hasPreviewAnalysis).length;
+            const missing = previewQuestions.length - ready;
+            const list = document.getElementById('questionPreviewList');
+            const totalEl = document.getElementById('previewTotalCount');
+            const missingEl = document.getElementById('previewMissingCount');
+            const readyEl = document.getElementById('previewReadyCount');
+            const syncEl = document.getElementById('previewSyncState');
+            if (totalEl) totalEl.textContent = previewQuestions.length;
+            if (missingEl) missingEl.textContent = missing;
+            if (readyEl) readyEl.textContent = ready;
+            if (syncEl) syncEl.textContent = previewSynced ? '已同步' : '待同步';
+
+            if (!list) return;
+            const items = getVisiblePreviewQuestions();
+            list.innerHTML = items.map(({question, index}) => {
+                const analysisHTML = hasPreviewAnalysis(question)
+                    ? previewEscapeHTML(question.analysis)
+                    : '<span class="question-preview-empty">解析字段当前为 null，可单题生成或一键补全。</span>';
+                return `
+                    <div class="question-preview-card ${question.loading ? 'is-loading' : ''} ${hasPreviewAnalysis(question) ? 'has-analysis' : ''}">
+                        <div class="question-preview-card-header">
+                            <div class="question-preview-index">${String(index + 1).padStart(2, '0')}</div>
+                            <div>
+                                <div class="question-preview-meta">
+                                    <span class="question-preview-pill type">${previewEscapeHTML(question.type)}</span>
+                                    <span class="question-preview-pill chapter">${previewEscapeHTML(question.chapter)}</span>
+                                    <span class="question-preview-pill empty">${previewEscapeHTML(question.difficulty)}</span>
+                                    ${previewStatusHTML(question)}
+                                </div>
+                                <div class="question-preview-stem">${previewEscapeHTML(question.stem)}</div>
+                            </div>
+                            <div class="question-preview-actions">
+                                <button class="small" type="button" onclick="generatePreviewAnalysis(${index})" ${question.loading ? 'disabled' : ''}>
+                                    <i data-lucide="${hasPreviewAnalysis(question) ? 'refresh-cw' : 'sparkles'}"></i>
+                                    ${hasPreviewAnalysis(question) ? '重新生成解析' : '生成解析'}
+                                </button>
+                                <button class="small icon-only" type="button" title="定位题目 JSON" onclick="syncPreviewQuestionsToFileA()">
+                                    <i data-lucide="braces"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="question-preview-card-body">
+                            <div>
+                                ${previewOptionHTML(question)}
+                                <div class="question-preview-answer-row">
+                                    <span>正确答案</span>
+                                    <strong>${previewEscapeHTML(question.answer)}</strong>
+                                </div>
+                            </div>
+                            <div class="question-preview-analysis">
+                                <div class="question-preview-analysis-head">
+                                    <span>题目解析</span>
+                                    ${hasPreviewAnalysis(question) ? '<span class="question-preview-pill ready">已写入</span>' : '<span class="question-preview-pill empty">字段为 null</span>'}
+                                </div>
+                                <div class="question-preview-analysis-body">${analysisHTML}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('') || '<div class="question-preview-analysis"><div class="question-preview-analysis-body">没有匹配的题目。</div></div>';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function setPreviewFilter(mode) {
+            previewFilter = mode;
+            document.querySelectorAll('[data-preview-filter]').forEach(button => {
+                button.classList.toggle('active', button.dataset.previewFilter === mode);
+            });
+            renderPreviewQuestions();
+        }
+
+        function generatePreviewAnalysis(index) {
+            const question = previewQuestions[index];
+            if (!question) return;
+            question.loading = true;
+            previewSynced = false;
+            renderPreviewQuestions();
+            window.setTimeout(() => {
+                question.analysis = question.generatedAnalysis;
+                question.loading = false;
+                renderPreviewQuestions();
+            }, 650 + index * 80);
+        }
+
+        async function generateAllPreviewAnalysis() {
+            const btn = document.getElementById('previewGenerateAllBtn');
+            if (btn) btn.disabled = true;
+            const targets = previewQuestions
+                .map((question, index) => ({question, index}))
+                .filter(({question}) => !hasPreviewAnalysis(question));
+            for (const {index} of targets) {
+                generatePreviewAnalysis(index);
+                await new Promise(resolve => window.setTimeout(resolve, 160));
+            }
+            window.setTimeout(() => {
+                if (btn) btn.disabled = false;
+                syncPreviewQuestionsToFileA({silent: true});
+                renderPreviewQuestions();
+            }, 1100);
+        }
+
+        function buildPreviewFileA() {
+            return {
+                questions: previewQuestions.map(question => ({
+                    '题干（必填）': question.stem,
+                    '题型 （必填）': question.type,
+                    '选项 A': question.options.A ?? null,
+                    '选项 B': question.options.B ?? null,
+                    '选项 C': question.options.C ?? null,
+                    '选项 D': question.options.D ?? null,
+                    '选项 E': question.options.E ?? null,
+                    '选项F': question.options.F ?? null,
+                    '选项G': question.options.G ?? null,
+                    '选项H(勿删)': question.options.H ?? null,
+                    '正确答案（必填）': question.answer,
+                    '解析（勿删）': question.analysis,
+                    '章节（勿删）': question.chapter,
+                    '难度': question.difficulty
+                }))
+            };
+        }
+
+        function syncPreviewQuestionsToFileA(options = {}) {
+            const fileA = document.getElementById('fileA');
+            if (!fileA) return;
+            fileA.value = JSON.stringify(buildPreviewFileA(), null, 2);
+            previewSynced = true;
+            if (typeof refreshFileAState === 'function') refreshFileAState();
+            if (!options.silent && typeof addLog === 'function') {
+                addLog('预览同步到文件A', `题目数: ${previewQuestions.length}`);
+            }
+            renderPreviewQuestions();
+        }
+
+        window.addEventListener('load', () => {
+            renderPreviewQuestions();
+            syncPreviewQuestionsToFileA({silent: true});
+        });
+    </script>
 </body>
 </html>

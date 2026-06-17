@@ -5,7 +5,7 @@ import json
 import time
 import httpx
 from . import ai_debug
-from .config import DIRECTORY_EXTRACTION_PROMPT, FILENAME_GENERATION_PROMPT, COMPARE_PROMPT
+from .config import DIRECTORY_EXTRACTION_PROMPT, FILENAME_GENERATION_PROMPT, COMPARE_PROMPT, QUESTION_EXPLANATION_PROMPT
 from .header_utils import get_question_type
 from .paths import DEMO_QUESTIONS_PATH
 from .utils import load_system_prompt
@@ -355,6 +355,35 @@ async def test_api_connection(api_url, api_key, model):
     )
 
 
+async def generate_question_explanation(api_url, api_key, model, question, prompt_override=''):
+    """为单道题生成解析。返回 (analysis, debug_id)。"""
+    system_prompt = prompt_override or QUESTION_EXPLANATION_PROMPT
+    user_prompt = (
+        "请只基于以下这一道题生成解析，不要引用或假设任何题外信息。"
+        "只返回 JSON：\n\n"
+        f"## 单题 JSON\n{json.dumps(question, ensure_ascii=False, indent=2)}"
+    )
+    result, debug_id = await call_ai_api(
+        api_url,
+        api_key,
+        model,
+        system_prompt,
+        user_prompt,
+        timeout=180.0,
+        kind='explanation'
+    )
+    if not result:
+        return '', debug_id
+
+    json_text = extract_json_content(result) or result
+    try:
+        data = json.loads(json_text)
+        analysis = data.get('analysis') or data.get('解析') or data.get('题目解析') or ''
+        return str(analysis).strip(), debug_id
+    except Exception:
+        return str(result).strip(), debug_id
+
+
 STRUCTURED_COMPARE_PROMPT = """你是一个严格的题库质量评分助手。请先阅读原始需求，再检查生成题目。
 
 请只输出 Markdown，包含以下结构：
@@ -372,7 +401,9 @@ STRUCTURED_COMPARE_PROMPT = """你是一个严格的题库质量评分助手。�
 给出 0-100 分，并说明扣分原因。
 
 ## 必改清单
-按严重程度列出必须修复的问题。"""
+按严重程度列出必须修复的问题。
+
+注意：解析默认允许为空；只有原始需求明确要求解析，或生成题目已经提供解析但解析内容错误时，才对解析质量扣分。"""
 
 
 def build_compare_messages(file_a, file_b, prompt_override='', mode='review', use_context_cache=False):

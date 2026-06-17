@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>题目解析拆分 Demo - QBank2Xlsx</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg: #f6f8fb;
+            --surface: #ffffff;
+            --surface-2: #f9fbfd;
+            --text: #172033;
+            --muted: #5e6b80;
+            --line: #d9e1ec;
+            --primary: #2563eb;
+            --primary-soft: #e8f0ff;
+            --success: #0f8a5f;
+            --success-soft: #e5f6ef;
+            --warning: #b45309;
+            --warning-soft: #fff4df;
+            --danger: #b91c1c;
+            --danger-soft: #fde8e8;
+            --violet: #6d28d9;
+            --violet-soft: #f0eaff;
+            --shadow: 0 12px 28px rgba(23, 32, 51, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            line-height: 1.5;
+        }
+
+        button,
+        input,
+        select,
+        textarea {
+            font: inherit;
+        }
+
+        button {
+            min-height: 36px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            padding: 8px 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: border-color 160ms ease, background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+        }
+
+        button:hover {
+            border-color: #b7c4d7;
+            box-shadow: 0 4px 14px rgba(23, 32, 51, 0.08);
+        }
+
+        button.primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #ffffff;
+        }
+
+        button.primary:hover {
+            background: #1d4ed8;
+        }
+
+        button.ghost {
+            background: transparent;
+        }
+
+        button.icon-only {
+            width: 36px;
+            padding: 0;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+            box-shadow: none;
+        }
+
+        i[data-lucide] {
+            width: 17px;
+            height: 17px;
+            stroke-width: 2.2;
+        }
+
+        .page {
+            width: min(1360px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 24px 0 40px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .brand-mark {
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
+            background: #172033;
+            color: #ffffff;
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 13px;
+            margin-top: 2px;
+        }
+
+        .top-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .section {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            margin-top: 16px;
+            overflow: hidden;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--line);
+            background: var(--surface-2);
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 17px;
+            font-weight: 800;
+        }
+
+        .section-tools {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            border-bottom: 1px solid var(--line);
+        }
+
+        .stat {
+            padding: 14px 18px;
+            border-right: 1px solid var(--line);
+        }
+
+        .stat:last-child {
+            border-right: 0;
+        }
+
+        .stat-label {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        .filter-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 18px;
+            border-bottom: 1px solid var(--line);
+            background: #ffffff;
+        }
+
+        .segmented {
+            display: inline-flex;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow: hidden;
+            background: #ffffff;
+        }
+
+        .segmented button {
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            min-height: 34px;
+            padding: 7px 11px;
+            color: var(--muted);
+        }
+
+        .segmented button.active {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+
+        .search {
+            width: min(360px, 100%);
+            height: 36px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 8px 11px;
+            color: var(--text);
+            background: #ffffff;
+        }
+
+        .question-list {
+            display: grid;
+            gap: 12px;
+            padding: 14px;
+        }
+
+        .question-card {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+
+        .question-card.is-loading {
+            border-color: #aac1ee;
+        }
+
+        .question-card.has-analysis {
+            border-color: #b8dfcc;
+        }
+
+        .question-header {
+            display: grid;
+            grid-template-columns: minmax(44px, 54px) minmax(0, 1fr) auto;
+            gap: 12px;
+            align-items: center;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--line);
+            background: #fcfdff;
+        }
+
+        .index-box {
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-weight: 800;
+        }
+
+        .question-meta {
+            display: flex;
+            gap: 7px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+
+        .pill {
+            min-height: 24px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 9px;
+            font-size: 12px;
+            font-weight: 800;
+            border: 1px solid transparent;
+        }
+
+        .pill.type {
+            color: var(--violet);
+            background: var(--violet-soft);
+        }
+
+        .pill.chapter {
+            color: #0369a1;
+            background: #e8f5ff;
+        }
+
+        .pill.difficulty {
+            color: var(--warning);
+            background: var(--warning-soft);
+        }
+
+        .pill.status-empty {
+            color: var(--warning);
+            background: var(--warning-soft);
+        }
+
+        .pill.status-ready {
+            color: var(--success);
+            background: var(--success-soft);
+        }
+
+        .pill.status-loading {
+            color: var(--primary);
+            background: var(--primary-soft);
+        }
+
+        .stem {
+            font-size: 16px;
+            font-weight: 800;
+            overflow-wrap: anywhere;
+        }
+
+        .question-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .question-body {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+            gap: 14px;
+            padding: 14px 16px 16px;
+        }
+
+        .question-body.is-collapsed {
+            grid-template-columns: 1fr;
+        }
+
+        .options {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .option {
+            min-height: 40px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 9px 10px;
+            display: grid;
+            grid-template-columns: 26px minmax(0, 1fr);
+            gap: 8px;
+            align-items: start;
+            background: #ffffff;
+        }
+
+        .option.is-answer {
+            border-color: #9bd3b4;
+            background: var(--success-soft);
+        }
+
+        .option-key {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: grid;
+            place-items: center;
+            background: #edf2f7;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .option.is-answer .option-key {
+            background: var(--success);
+            color: #ffffff;
+        }
+
+        .answer-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .answer-value {
+            color: var(--text);
+            background: #eef2f7;
+            border-radius: 6px;
+            padding: 3px 8px;
+        }
+
+        .analysis-box {
+            min-height: 142px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--surface-2);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .analysis-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .analysis-content {
+            color: var(--text);
+            font-size: 14px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .analysis-empty {
+            color: var(--warning);
+        }
+
+        .compare-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 14px;
+            padding: 14px;
+        }
+
+        .compare-panel {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+
+        .panel-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--line);
+            font-weight: 800;
+            background: var(--surface-2);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 180px;
+            border: 0;
+            resize: vertical;
+            padding: 13px 14px;
+            color: #263247;
+            background: #ffffff;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .score-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .score-table th,
+        .score-table td {
+            border-bottom: 1px solid var(--line);
+            padding: 10px 12px;
+            text-align: left;
+        }
+
+        .score-table th {
+            color: var(--muted);
+            background: var(--surface-2);
+            font-size: 12px;
+        }
+
+        .audit-body {
+            padding: 13px 14px;
+            font-size: 14px;
+            color: #263247;
+        }
+
+        .audit-body h3 {
+            margin: 0 0 8px;
+            font-size: 15px;
+        }
+
+        .audit-body ul {
+            margin: 0 0 0 18px;
+            padding: 0;
+        }
+
+        .audit-body li + li {
+            margin-top: 6px;
+        }
+
+        .spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #bcd0f7;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 750ms linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 1ms !important;
+                transition-duration: 1ms !important;
+            }
+        }
+
+        @media (max-width: 960px) {
+            .stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .stat:nth-child(2) {
+                border-right: 0;
+            }
+
+            .question-header {
+                grid-template-columns: 46px minmax(0, 1fr);
+            }
+
+            .question-actions {
+                grid-column: 1 / -1;
+                justify-content: flex-start;
+            }
+
+            .question-body,
+            .compare-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .page {
+                width: min(100% - 20px, 1360px);
+                padding-top: 14px;
+            }
+
+            .topbar,
+            .section-head,
+            .filter-row {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .top-actions,
+            .section-tools {
+                justify-content: flex-start;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .stat {
+                border-right: 0;
+                border-bottom: 1px solid var(--line);
+            }
+
+            .stat:last-child {
+                border-bottom: 0;
+            }
+
+            .options {
+                grid-template-columns: 1fr;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            .segmented {
+                width: 100%;
+            }
+
+            .segmented button {
+                width: 33.333%;
+            }
+
+            .search {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true">
+                    <i data-lucide="graduation-cap"></i>
+                </div>
+                <div>
+                    <h1>题目展示与解析生成 Demo</h1>
+                    <div class="subtitle">默认题目生成不带解析，解析作为独立步骤补全</div>
+                </div>
+            </div>
+            <div class="top-actions">
+                <button class="ghost" type="button">
+                    <i data-lucide="message-square-text"></i>
+                    解析提示词
+                </button>
+                <button class="primary" type="button" id="generateAllBtn">
+                    <i data-lucide="wand-sparkles"></i>
+                    一键生成解析
+                </button>
+            </div>
+        </header>
+
+        <section class="section" aria-labelledby="questionListTitle">
+            <div class="section-head">
+                <div class="section-title" id="questionListTitle">
+                    <i data-lucide="list-checks"></i>
+                    完整题目展示列表
+                </div>
+                <div class="section-tools">
+                    <button type="button" id="syncFileABtn">
+                        <i data-lucide="refresh-cw"></i>
+                        同步到文件 A
+                    </button>
+                    <button type="button" id="collapseBtn">
+                        <i data-lucide="panel-top-close"></i>
+                        收起解析
+                    </button>
+                </div>
+            </div>
+
+            <div class="stats" aria-label="题目统计">
+                <div class="stat">
+                    <div class="stat-label">题目总数</div>
+                    <div class="stat-value" id="totalCount">0</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">缺少解析</div>
+                    <div class="stat-value" id="missingCount">0</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">已生成解析</div>
+                    <div class="stat-value" id="readyCount">0</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">文件 A 状态</div>
+                    <div class="stat-value" id="fileAState">已同步</div>
+                </div>
+            </div>
+
+            <div class="filter-row">
+                <div class="segmented" role="group" aria-label="筛选题目">
+                    <button type="button" class="active" data-filter="all">全部</button>
+                    <button type="button" data-filter="missing">缺解析</button>
+                    <button type="button" data-filter="ready">已解析</button>
+                </div>
+                <input class="search" id="searchInput" type="search" placeholder="搜索题干、章节或题型" aria-label="搜索题目">
+            </div>
+
+            <div class="question-list" id="questionList"></div>
+        </section>
+
+        <section class="section" aria-labelledby="compareTitle">
+            <div class="section-head">
+                <div class="section-title" id="compareTitle">
+                    <i data-lucide="git-compare"></i>
+                    AB 对比审核
+                </div>
+                <div class="section-tools">
+                    <button type="button">
+                        <i data-lucide="trash-2"></i>
+                        去除 null 值
+                    </button>
+                    <button type="button">
+                        <i data-lucide="search"></i>
+                        同步生成对比结果
+                    </button>
+                </div>
+            </div>
+            <div class="compare-grid">
+                <div class="compare-panel">
+                    <div class="panel-head">
+                        <i data-lucide="file-check"></i>
+                        文件 A（生成的题目）
+                    </div>
+                    <textarea id="fileA" readonly></textarea>
+                </div>
+                <div class="compare-panel">
+                    <div class="panel-head">
+                        <i data-lucide="clipboard-list"></i>
+                        文件 B（原始需求）
+                    </div>
+                    <textarea readonly>生成 5 道基础常识题，包含单选题、多选题、判断题、填空题和简答题。默认不需要解析。</textarea>
+                </div>
+                <div class="compare-panel">
+                    <div class="panel-head">
+                        <i data-lucide="bar-chart-3"></i>
+                        结构化评分
+                    </div>
+                    <table class="score-table">
+                        <thead>
+                            <tr>
+                                <th>维度</th>
+                                <th>分数</th>
+                                <th>说明</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>数量完整性</td>
+                                <td>10</td>
+                                <td>题目数量符合需求</td>
+                            </tr>
+                            <tr>
+                                <td>解析状态</td>
+                                <td id="analysisScore">待补全</td>
+                                <td>默认不因缺解析扣分</td>
+                            </tr>
+                            <tr>
+                                <td>字段规范</td>
+                                <td>10</td>
+                                <td>字段名保持标准模板</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="compare-panel">
+                    <div class="panel-head">
+                        <i data-lucide="file-search"></i>
+                        对比测评评分
+                    </div>
+                    <div class="audit-body">
+                        <h3>总结</h3>
+                        <ul>
+                            <li>生成题目与原始需求匹配。</li>
+                            <li>解析作为后续独立操作，不影响初始题目生成。</li>
+                            <li id="auditAnalysisLine">当前仍有题目缺少解析，可通过题目列表补全。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const questions = [
+            {
+                stem: "食醋是什么味道的？",
+                type: "单选题",
+                options: {A: "酸", B: "甜", C: "苦", D: "辣"},
+                answer: "A",
+                chapter: "第一单元",
+                difficulty: "易",
+                analysis: null,
+                generated: "食醋的主要呈味物质是醋酸，因此典型味道是酸味。选项 A 正确，其余选项不符合食醋的基本味觉特征。"
+            },
+            {
+                stem: "一年中有几个季节？",
+                type: "多选题",
+                options: {A: "春", B: "夏", C: "秋", D: "冬"},
+                answer: "ABCD",
+                chapter: "第一单元/第一节",
+                difficulty: "偏易",
+                analysis: null,
+                generated: "通常一年分为春、夏、秋、冬四个季节，因此 A、B、C、D 均为正确答案。"
+            },
+            {
+                stem: "是《红楼梦》中的人物有（   ）",
+                type: "不定项选择题",
+                options: {A: "王熙凤", B: "贾宝玉", C: "林黛玉", D: "薛宝钗", E: "貂蝉"},
+                answer: "ABCD",
+                chapter: "第一单元/第二节",
+                difficulty: "适中",
+                analysis: null,
+                generated: "王熙凤、贾宝玉、林黛玉、薛宝钗均为《红楼梦》人物；貂蝉是古代传说和文学中的人物，不属于《红楼梦》。"
+            },
+            {
+                stem: "荔枝多吃上火？",
+                type: "判断题",
+                options: {A: "对", B: "错"},
+                answer: "A",
+                chapter: "生活常识",
+                difficulty: "难",
+                analysis: null,
+                generated: "从常见生活经验和中医饮食认知看，荔枝性温，过量食用可能引起口干、咽痛等不适，因此判断为对。"
+            },
+            {
+                stem: "中国的情人节是哪一天？",
+                type: "简答题",
+                options: {},
+                answer: "七夕，七月初七",
+                chapter: "传统节日",
+                difficulty: "适中",
+                analysis: null,
+                generated: "中国传统语境中的情人节通常指七夕节，时间为农历七月初七，源于牛郎织女传说。"
+            }
+        ];
+
+        let filterMode = "all";
+        let collapsed = false;
+
+        const listEl = document.getElementById("questionList");
+        const searchInput = document.getElementById("searchInput");
+        const generateAllBtn = document.getElementById("generateAllBtn");
+        const collapseBtn = document.getElementById("collapseBtn");
+        const fileAEl = document.getElementById("fileA");
+
+        function escapeHTML(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function hasAnalysis(question) {
+            return Boolean(question.analysis && String(question.analysis).trim());
+        }
+
+        function statusPill(question) {
+            if (question.loading) {
+                return '<span class="pill status-loading"><span class="spinner"></span>生成中</span>';
+            }
+            if (hasAnalysis(question)) {
+                return '<span class="pill status-ready"><i data-lucide="check-circle-2"></i>已解析</span>';
+            }
+            return '<span class="pill status-empty"><i data-lucide="circle-alert"></i>待生成</span>';
+        }
+
+        function optionHTML(question) {
+            const answer = String(question.answer || "");
+            const entries = Object.entries(question.options || {});
+            if (!entries.length) {
+                return '<div class="answer-row"><span>简答题答案</span><span class="answer-value">' + escapeHTML(question.answer) + '</span></div>';
+            }
+            return '<div class="options">' + entries.map(([key, value]) => {
+                const selected = answer.includes(key);
+                return `
+                    <div class="option ${selected ? "is-answer" : ""}">
+                        <div class="option-key">${escapeHTML(key)}</div>
+                        <div>${escapeHTML(value)}</div>
+                    </div>
+                `;
+            }).join("") + '</div>';
+        }
+
+        function visibleQuestions() {
+            const query = searchInput.value.trim().toLowerCase();
+            return questions
+                .map((question, index) => ({question, index}))
+                .filter(({question}) => {
+                    if (filterMode === "missing" && hasAnalysis(question)) return false;
+                    if (filterMode === "ready" && !hasAnalysis(question)) return false;
+                    if (!query) return true;
+                    const haystack = [question.stem, question.type, question.chapter, question.difficulty].join(" ").toLowerCase();
+                    return haystack.includes(query);
+                });
+        }
+
+        function renderStats() {
+            const ready = questions.filter(hasAnalysis).length;
+            const missing = questions.length - ready;
+            document.getElementById("totalCount").textContent = questions.length;
+            document.getElementById("missingCount").textContent = missing;
+            document.getElementById("readyCount").textContent = ready;
+            document.getElementById("fileAState").textContent = missing === 0 ? "已补全" : "可同步";
+            document.getElementById("analysisScore").textContent = missing === 0 ? "10" : "待补全";
+            document.getElementById("auditAnalysisLine").textContent = missing === 0
+                ? "所有题目已补全解析，可继续进行最终审核。"
+                : "当前仍有题目缺少解析，可通过题目列表补全。";
+        }
+
+        function renderQuestions() {
+            const items = visibleQuestions();
+            listEl.innerHTML = items.map(({question, index}) => {
+                const analysisText = hasAnalysis(question)
+                    ? escapeHTML(question.analysis)
+                    : '<span class="analysis-empty">解析为空，等待独立生成。</span>';
+                const actionLabel = hasAnalysis(question) ? "重新生成解析" : "生成解析";
+                const icon = hasAnalysis(question) ? "refresh-cw" : "sparkles";
+                return `
+                    <article class="question-card ${question.loading ? "is-loading" : ""} ${hasAnalysis(question) ? "has-analysis" : ""}">
+                        <div class="question-header">
+                            <div class="index-box">${String(index + 1).padStart(2, "0")}</div>
+                            <div>
+                                <div class="question-meta">
+                                    <span class="pill type">${escapeHTML(question.type)}</span>
+                                    <span class="pill chapter">${escapeHTML(question.chapter || "未分章")}</span>
+                                    <span class="pill difficulty">${escapeHTML(question.difficulty || "未设难度")}</span>
+                                    ${statusPill(question)}
+                                </div>
+                                <div class="stem">${escapeHTML(question.stem)}</div>
+                            </div>
+                            <div class="question-actions">
+                                <button type="button" onclick="generateOne(${index})" ${question.loading ? "disabled" : ""}>
+                                    <i data-lucide="${icon}"></i>
+                                    ${actionLabel}
+                                </button>
+                                <button class="icon-only" type="button" title="定位题目 JSON">
+                                    <i data-lucide="braces"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="question-body ${collapsed ? "is-collapsed" : ""}">
+                            <div>
+                                ${optionHTML(question)}
+                                <div class="answer-row">
+                                    <span>正确答案</span>
+                                    <span class="answer-value">${escapeHTML(question.answer || "待填写")}</span>
+                                </div>
+                            </div>
+                            <div class="analysis-box" style="${collapsed ? "display: none;" : ""}">
+                                <div class="analysis-title">
+                                    <span>题目解析</span>
+                                    ${hasAnalysis(question) ? '<span class="pill status-ready">已写入 JSON</span>' : '<span class="pill status-empty">字段为 null</span>'}
+                                </div>
+                                <div class="analysis-content">${analysisText}</div>
+                            </div>
+                        </div>
+                    </article>
+                `;
+            }).join("") || '<div class="analysis-box"><div class="analysis-content">没有匹配的题目。</div></div>';
+            renderStats();
+            renderFileA();
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        }
+
+        function renderFileA() {
+            const payload = {
+                questions: questions.map(question => ({
+                    "题干（必填）": question.stem,
+                    "题型 （必填）": question.type,
+                    "选项 A": question.options.A ?? null,
+                    "选项 B": question.options.B ?? null,
+                    "选项 C": question.options.C ?? null,
+                    "选项 D": question.options.D ?? null,
+                    "选项 E": question.options.E ?? null,
+                    "正确答案（必填）": question.answer,
+                    "解析（勿删）": question.analysis,
+                    "章节（勿删）": question.chapter,
+                    "难度": question.difficulty
+                }))
+            };
+            fileAEl.value = JSON.stringify(payload, null, 2);
+        }
+
+        function generateOne(index) {
+            const question = questions[index];
+            if (!question) return;
+            question.loading = true;
+            renderQuestions();
+            window.setTimeout(() => {
+                question.analysis = question.generated;
+                question.loading = false;
+                renderQuestions();
+            }, 650 + index * 80);
+        }
+
+        async function generateAll() {
+            generateAllBtn.disabled = true;
+            const missingIndexes = questions
+                .map((question, index) => ({question, index}))
+                .filter(({question}) => !hasAnalysis(question))
+                .map(({index}) => index);
+            for (const index of missingIndexes) {
+                generateOne(index);
+                await new Promise(resolve => window.setTimeout(resolve, 180));
+            }
+            window.setTimeout(() => {
+                generateAllBtn.disabled = false;
+                renderQuestions();
+            }, 1100);
+        }
+
+        document.querySelectorAll(".segmented button").forEach(button => {
+            button.addEventListener("click", () => {
+                document.querySelectorAll(".segmented button").forEach(item => item.classList.remove("active"));
+                button.classList.add("active");
+                filterMode = button.dataset.filter;
+                renderQuestions();
+            });
+        });
+
+        searchInput.addEventListener("input", renderQuestions);
+        generateAllBtn.addEventListener("click", generateAll);
+        document.getElementById("syncFileABtn").addEventListener("click", renderQuestions);
+        collapseBtn.addEventListener("click", () => {
+            collapsed = !collapsed;
+            collapseBtn.innerHTML = collapsed
+                ? '<i data-lucide="panel-top-open"></i> 展开解析'
+                : '<i data-lucide="panel-top-close"></i> 收起解析';
+            renderQuestions();
+        });
+
+        renderQuestions();
+    </script>
+</body>
+</html>

@@ -18,7 +18,7 @@ ROOT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from qbank2xlsx import ai_debug
-from qbank2xlsx.ai_service import generate_questions_stream, extract_directory, generate_filename, match_question_types, compare_files_stream, compare_chat_stream, test_api_connection
+from qbank2xlsx.ai_service import generate_questions_stream, extract_directory, generate_filename, match_question_types, compare_files_stream, compare_chat_stream, test_api_connection, generate_question_explanation
 from qbank2xlsx.excel_service import convert_questions, export_to_excel, export_to_word, parse_excel_to_questions
 from qbank2xlsx.header_utils import get_question_type
 from qbank2xlsx.logger import log_api_call
@@ -332,6 +332,14 @@ class CompareChatRequest(BaseModel):
     history: list = Field(default_factory=list)
 
 
+class ExplanationRequest(BaseModel):
+    apiUrl: str
+    apiKey: str
+    model: str
+    question: dict
+    prompt: str = ""
+
+
 class TestApiRequest(BaseModel):
     apiUrl: str
     apiKey: str
@@ -588,6 +596,24 @@ async def test_api_endpoint(req: TestApiRequest):
         return {"ok": True, "message": result or "OK", "debugId": debug_id}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/generate-explanation")
+async def generate_explanation_endpoint(req: ExplanationRequest):
+    try:
+        api_url, api_key = resolve_api_credentials(req)
+        analysis, debug_id = await generate_question_explanation(
+            api_url,
+            api_key,
+            req.model,
+            req.question,
+            req.prompt
+        )
+        if analysis:
+            return {"analysis": analysis, "debugId": debug_id}
+        return {"error": "无法生成解析", "debugId": debug_id}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.post("/api/compare")

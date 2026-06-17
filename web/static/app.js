@@ -29,9 +29,15 @@
         const QUESTION_TYPES_STORAGE_KEY = 'editableQuestionTypes';
         const CONSOLE_SETTINGS_STORAGE_KEY = 'systemConsoleSettings';
         const PROMPT_OVERRIDES_STORAGE_KEY = 'aiPromptOverrides';
+        const QUESTION_ANALYSIS_COLLAPSED_STORAGE_KEY = 'questionAnalysisPanelCollapsed';
+        const QUESTION_ANALYSIS_CONCURRENCY_STORAGE_KEY = 'questionAnalysisConcurrency';
         let activePromptKey = '';
+        let questionAnalysisFilter = 'all';
+        let questionAnalysisBusy = false;
+        let questionAnalysisLoadingKeys = new Set();
         const PROMPT_DEFAULTS = {
             generation: '',
+            explanation: '你是一个专业的题库解析生成助手。请只为给定的单道题生成解析。要求：1. 解析必须基于题干、选项和正确答案，说明为什么正确答案成立，必要时简要说明干扰项问题。2. 不得修改题干、题型、选项、正确答案、章节、难度等任何字段。3. 不要编造题目之外的背景信息；上下文不足时，只依据题面可判断的信息说明。4. 直接输出 JSON，格式必须是：{"analysis": "解析内容"}。5. 不要输出 Markdown、代码块或 JSON 之外的任何文字。',
             filename: '你是一个专业的文件命名助手。请根据用户提供的题目需求，生成一个简洁、有意义的文件名（不包含扩展名）。用下划线或连字符分隔。',
             directory: "你是一个专业的内容分析助手。请根据用户提供的题目需求，提取或生成合适的目录结构。目录应该简洁明了，并且使用python的list进行描述，例如['第1章 基础概念', '第2章 高级技巧']",
             typeMatch: '你是一个题库需求分类助手。请只从候选题型中选择最适合用户需求的题型。必须直接输出 JSON，格式为 {\"questionTypes\": [\"题型1\"]}，不要输出其他文字。',
@@ -45,7 +51,8 @@
 
 请从以下方面进行对比分析：
 1. 题目数量是否符合需求，是否存在缺漏等
-2. 题目信息（包括题目题干，类型、选项、解析等）和原始需求完全一致
+2. 题目信息（包括题目题干、类型、选项、答案、章节、难度等）和原始需求是否一致
+3. 解析默认允许为空；只有原始需求明确要求解析，或文件 A 已提供解析但内容错误时，才需要指出解析问题
 
 请使用 Markdown 输出审核意见，建议采用如下结构：
 ## 总结
@@ -70,11 +77,14 @@
 给出 0-100 分，并说明扣分原因。
 
 ## 必改清单
-按严重程度列出必须修复的问题。`,
+按严重程度列出必须修复的问题。
+
+注意：解析默认允许为空；只有原始需求明确要求解析，或生成题目已经提供解析但解析内容错误时，才对解析质量扣分。`,
             compareChat: '你是一个专业的题库审核助手。请基于已有 AB 对比结果、生成题目和原始需求回答用户追问。回答必须使用 Markdown，结论明确，必要时给出可执行的修改建议。如果上下文不足，请直接说明缺少哪些信息，不要编造。'
         };
         const PROMPT_LABELS = {
             generation: '题目生成提示词',
+            explanation: '解析生成提示词',
             filename: '文件名生成提示词',
             directory: '目录提取提示词',
             typeMatch: 'AI 匹配题型提示词',
@@ -100,6 +110,7 @@
             {key: 'generation', label: '生成题目'},
             {key: 'requirements', label: '输入题目需求'},
             {key: 'results', label: 'AI 生成结果'},
+            {key: 'questionAnalysis', label: '题目解析状态'},
             {key: 'templateConvert', label: '模板互转'},
             {key: 'compare', label: 'AB 对比审核'},
             {key: 'export', label: '导出 Excel'}
@@ -204,7 +215,7 @@
             if (enabled) enabled.checked = Boolean(settings.toastEnabled);
             if (duration) duration.value = settings.toastDuration;
             if (poll) poll.value = clampPollIntervalMs(settings.pollIntervalMs);
-            setConsoleCollapsed(Boolean(settings.consoleCollapsed), {persist: false});
+            setConsoleCollapsed(false, {persist: false});
             renderQuickNavSettings();
             renderQuickNavBar();
         }
@@ -288,6 +299,272 @@
                     }).join('')}
                 </div>
             `;
+            enableQuickNavHorizontalScroll();
+        }
+
+        function enableQuickNavHorizontalScroll() {
+            const container = document.getElementById('quickNavBar');
+            if (!container || container.dataset.horizontalScrollReady === 'true') return;
+            container.dataset.horizontalScrollReady = 'true';
+            container.addEventListener('wheel', event => {
+                if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+                if (container.scrollWidth <= container.clientWidth) return;
+                event.preventDefault();
+                container.scrollLeft += event.deltaY;
+            }, {passive: false});
+        }
+
+        const SECTION_ICON_NAMES = {
+            questionTypes: 'list-checks',
+            api: 'settings',
+            filename: 'file-output',
+            directory: 'folder-tree',
+            systemPrompt: 'file-text',
+            console: 'terminal',
+            logs: 'clipboard-list',
+            generation: 'rocket',
+            requirements: 'edit-3',
+            results: 'sparkles',
+            questionAnalysis: 'clipboard-check',
+            templateConvert: 'repeat-2',
+            compare: 'git-compare',
+            export: 'download'
+        };
+        const SECTION_LABEL_OVERRIDES = {
+            console: '系统控制台'
+        };
+
+        let sectionSummaryUpdateScheduled = false;
+
+        function getSectionElementByKey(sectionKey) {
+            return document.querySelector(`.section[data-section-key="${sectionKey}"]`);
+        }
+
+        function getSectionLabelByKey(sectionKey) {
+            return SECTION_LABEL_OVERRIDES[sectionKey] || SECTION_COLOR_ITEMS.find(item => item.key === sectionKey)?.label || sectionKey;
+        }
+
+        function getSectionIconByKey(sectionKey) {
+            return SECTION_ICON_NAMES[sectionKey] || 'square';
+        }
+
+        function scheduleSectionSummaries() {
+            if (sectionSummaryUpdateScheduled) return;
+            sectionSummaryUpdateScheduled = true;
+            requestAnimationFrame(() => {
+                sectionSummaryUpdateScheduled = false;
+                updateSectionSummaries();
+            });
+        }
+
+        function renderSectionSummaryChip(label, {active = false, clickable = false, title = ''} = {}) {
+            const classes = ['section-summary-chip'];
+            if (active) classes.push('is-active');
+            if (clickable) classes.push('is-clickable');
+            return `<span class="${classes.join(' ')}"${title ? ` title="${escapeHTML(title)}"` : ''}>${escapeHTML(label)}</span>`;
+        }
+
+        function renderSectionSummaryButton(icon, label, onclick, {title = '', disabled = false, className = ''} = {}) {
+            const classes = ['small', 'section-summary-action'];
+            if (className) classes.push(className);
+            return `
+                <button type="button" class="${classes.join(' ')}" ${title ? `title="${escapeHTML(title)}"` : ''} ${disabled ? 'disabled' : ''} onclick="event.stopPropagation(); ${onclick}">
+                    <i data-lucide="${icon}"></i>
+                    ${escapeHTML(label)}
+                </button>
+            `;
+        }
+
+        function countQuestionsFromText(text) {
+            const data = parseQuestionJSONText(text);
+            return Array.isArray(data?.questions) ? data.questions.length : 0;
+        }
+
+        function initializeCollapsibleSections() {
+            document.querySelectorAll('.section[data-section-key]').forEach(section => {
+                if (section.dataset.collapseReady === 'true') return;
+                const sectionKey = section.dataset.sectionKey;
+                const header = document.createElement('div');
+                header.className = 'section-collapse-header';
+                const body = document.createElement('div');
+                body.className = 'section-collapse-body';
+                while (section.firstChild) {
+                    body.appendChild(section.firstChild);
+                }
+                const label = getSectionLabelByKey(sectionKey);
+                const icon = getSectionIconByKey(sectionKey);
+                header.innerHTML = `
+                    <button type="button" class="section-collapse-title-btn" onclick="toggleSectionCollapsed('${sectionKey}')" aria-expanded="false">
+                        <span class="section-collapse-title">
+                            <i data-lucide="${icon}"></i>
+                            <span>${escapeHTML(label)}</span>
+                        </span>
+                    </button>
+                    <div class="section-collapse-summary" id="section-summary-${sectionKey}"></div>
+                    <button type="button" class="section-collapse-icon-btn" onclick="toggleSectionCollapsed('${sectionKey}')" aria-label="展开或收起 ${escapeHTML(label)}" title="展开或收起">
+                        <i data-lucide="chevrons-down"></i>
+                    </button>
+                `;
+                section.appendChild(header);
+                section.appendChild(body);
+                section.classList.add('collapsible-section', 'is-collapsed');
+                section.dataset.collapseReady = 'true';
+            });
+            updateSectionSummaries();
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        function setSectionCollapsed(sectionKey, collapsed) {
+            const section = getSectionElementByKey(sectionKey);
+            if (!section) return;
+            section.classList.toggle('is-collapsed', collapsed);
+            const toggleButtons = section.querySelectorAll('.section-collapse-title-btn, .section-collapse-icon-btn');
+            toggleButtons.forEach(button => {
+                button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            });
+            const iconButtons = section.querySelectorAll('.section-collapse-icon-btn i');
+            iconButtons.forEach(icon => {
+                icon.setAttribute('data-lucide', collapsed ? 'chevrons-down' : 'chevrons-up');
+            });
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+            scheduleSectionSummaries();
+        }
+
+        function toggleSectionCollapsed(sectionKey) {
+            const section = getSectionElementByKey(sectionKey);
+            if (!section) return;
+            setSectionCollapsed(sectionKey, !section.classList.contains('is-collapsed'));
+        }
+
+        function updateSectionSummaries() {
+            const summaries = {};
+            const selectedTypeChips = selectedTypes.length
+                ? [
+                    ...selectedTypes.slice(0, 4).map(type => renderSectionSummaryChip(type)),
+                    ...(selectedTypes.length > 4 ? [renderSectionSummaryChip(`+${selectedTypes.length - 4}`)] : [])
+                ]
+                : [renderSectionSummaryChip('尚未选择题型')];
+            summaries.questionTypes = `
+                <div class="section-summary-inline">
+                    ${selectedTypeChips.join('')}
+                    ${renderSectionSummaryButton('wand-sparkles', 'AI 匹配', 'matchQuestionTypesWithAI()', {title: '使用 AI 自动匹配题型'})}
+                </div>
+            `;
+
+            const apiChips = apiConfigs.length
+                ? apiConfigs.map((config, idx) => renderSectionSummaryChip(config.name || `配置 ${idx + 1}`, {
+                    active: Boolean(config.selected),
+                    clickable: true,
+                    title: config.url ? `${config.name || `配置 ${idx + 1}`} · ${config.url}` : (config.name || `配置 ${idx + 1}`)
+                })).map((chip, idx) => `
+                    <button type="button" class="section-summary-chip-btn" onclick="event.stopPropagation(); selectApi(${idx})">${chip}</button>
+                `).join('')
+                : renderSectionSummaryChip('未配置 API');
+            summaries.api = `<div class="section-summary-inline">${apiChips}</div>`;
+
+            const filename = String(document.getElementById('outputFilename')?.value || '').trim() || '未填写';
+            summaries.filename = `<span class="section-summary-muted">当前文件名：${escapeHTML(filename)}</span>`;
+
+            const directoryText = String(document.getElementById('directory')?.value || '').trim();
+            const directoryCount = directoryText ? directoryText.split('\n').filter(line => line.trim()).length : 0;
+            summaries.directory = `<span class="section-summary-muted">${directoryCount ? `${directoryCount} 段目录` : '尚未填写目录结构'}</span>`;
+
+            const systemPromptText = String(document.getElementById('systemPrompt')?.value || '');
+            const promptChanged = defaultSystemPrompt && systemPromptText && systemPromptText !== defaultSystemPrompt;
+            summaries.systemPrompt = `<span class="section-summary-muted">${systemPromptText.length} 字${promptChanged ? ' · 已修改' : ' · 默认提示词'}</span>`;
+
+            const settings = getConsoleSettings();
+            summaries.console = `
+                <div class="section-summary-inline">
+                    ${renderSectionSummaryChip(`自动对比 ${settings.autoCompareEnabled ? '开' : '关'}`)}
+                    ${renderSectionSummaryChip(`日志 ${settings.toastEnabled ? '开' : '关'}`)}
+                    ${renderSectionSummaryChip(`轮询 ${clampPollIntervalMs(settings.pollIntervalMs)}ms`)}
+                </div>
+            `;
+
+            const logs = JSON.parse(localStorage.getItem('aiLogs') || '[]');
+            const latestLog = logs[0];
+            summaries.logs = latestLog
+                ? `<span class="section-summary-muted">共 ${logs.length} 条 · 最近：${escapeHTML(latestLog.action || '')}</span>`
+                : '<span class="section-summary-muted">暂无日志</span>';
+
+            const generationDone = globalGenerationProgress.total > 0 && globalGenerationProgress.completed >= globalGenerationProgress.total && globalGenerationProgress.status === 'done';
+            const generationStatus = globalGenerationProgress.total > 0
+                ? `${globalGenerationProgress.completed}/${globalGenerationProgress.total}${generationDone ? ' 完成' : ''}`
+                : '待生成';
+            summaries.generation = `
+                <div class="section-summary-inline">
+                    ${renderSectionSummaryChip(`进度 ${generationStatus}`)}
+                    ${renderSectionSummaryChip(`并发 ${getBatchConcurrency()}`)}
+                    ${renderSectionSummaryButton('rocket', '生成题目', 'generateQuestions()', {title: '开始生成题目', disabled: batchGenerating || activeGenerations.size > 0})}
+                    ${renderSectionSummaryButton('ban', '结束任务', 'cancelAllGenerationTasks()', {title: '结束全部生成任务', disabled: !batchGenerating && activeGenerations.size === 0})}
+                </div>
+            `;
+
+            const inputCount = inputPairs.filter(pair => String(pair.text || '').trim()).length;
+            const inputChars = inputPairs.reduce((sum, pair) => sum + String(pair.text || '').trim().length, 0);
+            summaries.requirements = `<span class="section-summary-muted">${inputCount} 个输入 · ${inputChars} 字</span>`;
+
+            const outputQuestionCount = outputPairs.reduce((sum, pair) => {
+                const text = document.getElementById(`editable-${pair.id}`)?.value || pair.editable || '';
+                return sum + countQuestionsFromText(text);
+            }, 0);
+            const outputValidCount = outputPairs.filter(pair => countQuestionsFromText(document.getElementById(`editable-${pair.id}`)?.value || pair.editable || '') > 0).length;
+            summaries.results = `<span class="section-summary-muted">${outputValidCount} 组输出 · ${outputQuestionCount} 题</span>`;
+
+            const source = getQuestionAnalysisSource();
+            const ready = source.items.filter(item => hasQuestionAnalysis(item.question)).length;
+            const missing = source.items.length - ready;
+            summaries.questionAnalysis = `
+                <div class="section-summary-inline">
+                    ${renderSectionSummaryChip(source.label || '暂无题目')}
+                    ${renderSectionSummaryChip(`题目 ${source.items.length}`)}
+                    ${renderSectionSummaryChip(`缺 ${missing}`)}
+                    ${renderSectionSummaryChip(`已 ${ready}`)}
+                    ${renderSectionSummaryChip(`并发 ${getQuestionAnalysisConcurrency()}`)}
+                    ${renderSectionSummaryButton('wand-sparkles', '一键解析', 'generateAllQuestionAnalysis()', {title: '为缺少解析的题目一键生成解析', disabled: questionAnalysisBusy || source.items.length === 0 || missing === 0})}
+                </div>
+            `;
+
+            const templateTarget = document.getElementById('convertTargetTemplate')?.value === 'answer_helper' ? '答题帮手模板' : '标准题库模板';
+            const templateSourceCount = (() => {
+                const convertText = String(document.getElementById('templateConvertOutput')?.value || '').trim();
+                if (!convertText) return 0;
+                const data = parseQuestionJSONText(convertText);
+                return Array.isArray(data?.questions) ? data.questions.length : 0;
+            })();
+            summaries.templateConvert = `<span class="section-summary-muted">${templateTarget}${templateSourceCount ? ` · ${templateSourceCount} 题` : ''}</span>`;
+
+            const fileACount = (() => {
+                try { return getFileAQuestions().length; } catch { return 0; }
+            })();
+            const fileBText = String(document.getElementById('fileB')?.value || '').trim();
+            const fileBLines = fileBText ? fileBText.split('\n').filter(line => line.trim()).length : 0;
+            const compareReady = Boolean(String(document.getElementById('compareResult')?.dataset.rawText || '').trim() || String(document.getElementById('compareScoreResult')?.dataset.rawText || '').trim());
+            summaries.compare = `
+                <div class="section-summary-inline">
+                    ${renderSectionSummaryChip(`文件 A ${fileACount} 题`)}
+                    ${renderSectionSummaryChip(fileBLines ? `文件 B ${fileBLines} 段` : '文件 B 未填写')}
+                    ${renderSectionSummaryChip(compareReady ? '已对比' : '待对比')}
+                </div>
+            `;
+
+            const exportTemplate = document.getElementById('excelTemplate')?.value === 'answer_helper' ? '答题帮手模板' : '标准题库模板';
+            summaries.export = `<span class="section-summary-muted">${exportTemplate}${fileACount ? ` · ${fileACount} 题` : ''}</span>`;
+
+            Object.entries(summaries).forEach(([key, html]) => {
+                const el = document.getElementById(`section-summary-${key}`);
+                if (el) {
+                    el.innerHTML = html;
+                }
+            });
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
         }
 
         function shouldAutoCompareAfterGeneration() {
@@ -410,6 +687,7 @@
                 </div>
             `).join('');
             if (typeof lucide !== 'undefined') lucide.createIcons();
+            scheduleSectionSummaries();
         }
 
         const AI_DEBUG_KIND_LABELS = {
@@ -420,6 +698,7 @@
             compare: 'AB 对比',
             compareScore: '结构化评分',
             compareChat: '对比追问',
+            explanation: '解析生成',
             test: 'API 连接测试'
         };
 
@@ -1061,6 +1340,7 @@
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
+            scheduleSectionSummaries();
         }
 
         function addApiConfig() {
@@ -1093,6 +1373,7 @@
         function updateConfig(idx, field, value) {
             apiConfigs[idx][field] = value;
             saveConfigs();
+            scheduleSectionSummaries();
         }
 
         function exportApiConfigs() {
@@ -1199,6 +1480,7 @@
                 pair.text = textarea.value;
                 document.querySelector(`#count-${id}`).textContent = `${pair.text.length} 字`;
                 updateEditorLineNumbers(textarea);
+                scheduleSectionSummaries();
             }
         }
 
@@ -1251,6 +1533,7 @@
             if (!textarea) return;
             textarea.value = value;
             updateEditorLineNumbers(textarea);
+            scheduleSectionSummaries();
         }
 
         function getReplacementTargets(scope) {
@@ -1594,6 +1877,7 @@
             }
             if (!selectedTypes.length) {
                 summary.innerHTML = '<span class="type-summary-placeholder">尚未选择，点击卡片即可多选</span>';
+                scheduleSectionSummaries();
                 return;
             }
             const visibleTypes = selectedTypes.slice(0, 4);
@@ -1603,6 +1887,7 @@
                 chips.push(`<span class="type-chip">+${moreCount}</span>`);
             }
             summary.innerHTML = chips.join('');
+            scheduleSectionSummaries();
         }
 
         function setSelectedTypes(types) {
@@ -1886,6 +2171,7 @@
                     ? `全局生成进度：${completed}/${total}${done ? '（已完成）' : cancelled ? '（已取消）' : errored ? '（出错）' : ''}`
                     : '全局生成进度';
             }
+            scheduleSectionSummaries();
         }
 
         function updateOutputFull(pairId, text, shouldScroll = false) {
@@ -1915,6 +2201,8 @@
                 editableEl.value = text;
                 updateEditorLineNumbers(editableEl);
             }
+            renderQuestionAnalysisBar();
+            scheduleSectionSummaries();
         }
 
         function addInputPair() {
@@ -1922,6 +2210,7 @@
             outputPairs.push({id: inputPairs[inputPairs.length - 1].id, editable: '', full: ''});
             renderInputPairs();
             renderOutputPairs();
+            renderQuestionAnalysisBar();
             addLog('添加输入框', `当前共 ${inputPairs.length} 个输入框`);
         }
 
@@ -1933,6 +2222,7 @@
                 outputPairs.splice(idx, 1);
                 renderInputPairs();
                 renderOutputPairs();
+                renderQuestionAnalysisBar();
                 addLog('删除输入框', `剩余 ${inputPairs.length} 个输入框`);
             }
         }
@@ -1954,6 +2244,7 @@
 
             renderInputPairs();
             renderOutputPairs();
+            renderQuestionAnalysisBar();
             addLog('切分输入框', `输入 #${id + 1} 已切分为两部分`);
 
             setTimeout(() => {
@@ -1993,6 +2284,8 @@
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
+            renderQuestionAnalysisBar();
+            scheduleSectionSummaries();
         }
 
         function renderOutputPairs() {
@@ -2050,6 +2343,7 @@
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
+            scheduleSectionSummaries();
         }
 
         function jumpToInput(pairId) {
@@ -2092,6 +2386,7 @@
             if (outputPair && textarea) {
                 outputPair.full = textarea.value;
                 updateEditorLineNumbers(textarea);
+                scheduleSectionSummaries();
             }
         }
 
@@ -2101,6 +2396,8 @@
             if (outputPair && textarea) {
                 outputPair.editable = textarea.value;
                 updateEditorLineNumbers(textarea);
+                renderQuestionAnalysisBar();
+                scheduleSectionSummaries();
             }
         }
 
@@ -2898,6 +3195,7 @@
                 if (compareBtn) compareBtn.disabled = true;
                 setExportButtonsDisabled(true);
             }
+            renderQuestionAnalysisBar();
         }
 
         function applyTemplateConvertToFileA() {
@@ -2971,6 +3269,460 @@
             }
 
             return null; // Not found or empty
+        }
+
+        const QUESTION_ANALYSIS_OPTION_FIELDS = [
+            {label: 'A', keys: ['选项 A', '选项A']},
+            {label: 'B', keys: ['选项 B', '选项B']},
+            {label: 'C', keys: ['选项 C', '选项C']},
+            {label: 'D', keys: ['选项 D', '选项D']},
+            {label: 'E', keys: ['选项 E', '选项E', '选项E\n(勿删)', '选项E(勿删)']},
+            {label: 'F', keys: ['选项 F', '选项F', '选项F\n(勿删)', '选项F(勿删)']},
+            {label: 'G', keys: ['选项 G', '选项G', '选项G\n(勿删)', '选项G(勿删)']},
+            {label: 'H', keys: ['选项 H', '选项H', '选项H\n(勿删)', '选项H(勿删)']}
+        ];
+
+        function getQuestionAnalysisValue(question) {
+            return getQuestionFieldValue(question, '解析\n（勿删）')
+                || getQuestionFieldValue(question, '题目解析')
+                || '';
+        }
+
+        function hasQuestionAnalysis(question) {
+            return Boolean(String(getQuestionAnalysisValue(question) || '').trim());
+        }
+
+        function setQuestionAnalysisValue(question, analysis) {
+            const preferredKeys = ['解析（勿删）', '解析\n（勿删）', '题目解析', '解析'];
+            const existingKey = preferredKeys.find(key => Object.prototype.hasOwnProperty.call(question, key))
+                || Object.keys(question).find(key => /解析/.test(key))
+                || '解析（勿删）';
+            question[existingKey] = analysis;
+        }
+
+        function getQuestionAnalysisOptions(question) {
+            return QUESTION_ANALYSIS_OPTION_FIELDS
+                .map(item => {
+                    const value = item.keys.map(key => question[key]).find(raw => raw !== null && raw !== undefined && String(raw).trim() !== '');
+                    return value === undefined ? null : {label: item.label, value: String(value)};
+                })
+                .filter(Boolean);
+        }
+
+        function parseQuestionJSONText(text) {
+            const value = String(text || '').trim();
+            if (!value) return null;
+            try {
+                const data = JSON.parse(value);
+                const questions = Array.isArray(data) ? data : data.questions;
+                if (!Array.isArray(questions) || questions.length === 0) return null;
+                return Array.isArray(data) ? {questions} : data;
+            } catch {
+                return null;
+            }
+        }
+
+        function collectOutputQuestionSource() {
+            const items = [];
+            outputPairs.forEach(pair => {
+                const textarea = document.getElementById(`editable-${pair.id}`);
+                const text = textarea ? textarea.value : (pair.editable || '');
+                const data = parseQuestionJSONText(text);
+                if (!data || !Array.isArray(data.questions)) return;
+                data.questions.forEach((question, index) => {
+                    items.push({
+                        sourceType: 'output',
+                        pairId: pair.id,
+                        questionIndex: index,
+                        globalIndex: items.length,
+                        question
+                    });
+                });
+            });
+            return {
+                kind: 'outputs',
+                label: items.length ? `生成输出 ${items.length} 题` : '暂无题目',
+                items
+            };
+        }
+
+        function getQuestionAnalysisSource(options = {}) {
+            const outputSource = collectOutputQuestionSource();
+            const fileAData = parseQuestionJSONText(document.getElementById('fileA')?.value || '');
+            if (outputSource.items.length > 0) return outputSource;
+            if (!options.preferOutputs && fileAData && Array.isArray(fileAData.questions) && fileAData.questions.length > 0) {
+                return {
+                    kind: 'fileA',
+                    label: `文件 A ${fileAData.questions.length} 题`,
+                    data: fileAData,
+                    items: fileAData.questions.map((question, index) => ({
+                        sourceType: 'fileA',
+                        questionIndex: index,
+                        globalIndex: index,
+                        question
+                    }))
+                };
+            }
+            return {
+                kind: 'empty',
+                label: '暂无题目',
+                items: []
+            };
+        }
+
+        function questionAnalysisItemKey(item) {
+            if (!item) return '';
+            return item.sourceType === 'output'
+                ? `output:${item.pairId}:${item.questionIndex}`
+                : `fileA:${item.questionIndex}`;
+        }
+
+        function getVisibleQuestionAnalysisItems(source) {
+            const query = String(document.getElementById('questionAnalysisSearch')?.value || '').trim().toLowerCase();
+            return source.items.filter(item => {
+                const question = item.question;
+                const ready = hasQuestionAnalysis(question);
+                if (questionAnalysisFilter === 'missing' && ready) return false;
+                if (questionAnalysisFilter === 'ready' && !ready) return false;
+                if (!query) return true;
+                const fields = [
+                    getQuestionFieldValue(question, '题干（必填）'),
+                    getQuestionFieldValue(question, '题型 （必填）'),
+                    getQuestionFieldValue(question, '章节\n（勿删）'),
+                    getQuestionFieldValue(question, '难度')
+                ].join(' ').toLowerCase();
+                return fields.includes(query);
+            });
+        }
+
+        function renderQuestionAnalysisStatus(question, loading) {
+            if (loading) {
+                return '<span class="question-analysis-pill type"><span class="question-analysis-spinner"></span>生成中</span>';
+            }
+            if (hasQuestionAnalysis(question)) {
+                return '<span class="question-analysis-pill ready"><i data-lucide="check-circle-2"></i>已解析</span>';
+            }
+            return '<span class="question-analysis-pill empty"><i data-lucide="circle-alert"></i>待解析</span>';
+        }
+
+        function renderQuestionAnalysisOptions(question) {
+            const options = getQuestionAnalysisOptions(question);
+            const answer = String(getQuestionFieldValue(question, '正确答案\n（必填）') || '');
+            if (!options.length) {
+                return `<div class="question-analysis-answer-row"><span>答案</span><strong>${escapeHTML(answer || '未填写')}</strong></div>`;
+            }
+            return `<div class="question-analysis-options">${options.map(option => `
+                <div class="question-analysis-option ${answer.includes(option.label) ? 'is-answer' : ''}">
+                    <span class="question-analysis-option-key">${escapeHTML(option.label)}</span>
+                    <span>${escapeHTML(option.value)}</span>
+                </div>
+            `).join('')}</div>`;
+        }
+
+        function renderQuestionAnalysisBar() {
+            const bar = document.getElementById('questionAnalysisStatusBar');
+            if (!bar) return;
+
+            const source = getQuestionAnalysisSource();
+            const total = source.items.length;
+            const ready = source.items.filter(item => hasQuestionAnalysis(item.question)).length;
+            const missing = total - ready;
+
+            const setText = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = String(value);
+            };
+            setText('questionAnalysisTotal', total);
+            setText('questionAnalysisMissing', missing);
+            setText('questionAnalysisReady', ready);
+            setText('questionAnalysisSource', source.label);
+
+            const generateAllBtn = document.getElementById('generateAllAnalysisBtn');
+            if (generateAllBtn) {
+                generateAllBtn.disabled = total === 0 || missing === 0 || questionAnalysisBusy;
+                generateAllBtn.innerHTML = questionAnalysisBusy
+                    ? '<span class="question-analysis-spinner"></span> 解析中'
+                    : '<i data-lucide="wand-sparkles"></i> 一键解析';
+            }
+            const concurrencyInput = document.getElementById('questionAnalysisConcurrency');
+            if (concurrencyInput) {
+                concurrencyInput.disabled = questionAnalysisBusy;
+            }
+
+            const list = document.getElementById('questionAnalysisList');
+            if (list) {
+                const visibleItems = getVisibleQuestionAnalysisItems(source);
+                list.innerHTML = visibleItems.map(item => {
+                    const question = item.question;
+                    const key = questionAnalysisItemKey(item);
+                    const loading = questionAnalysisLoadingKeys.has(key);
+                    const stem = getQuestionFieldValue(question, '题干（必填）') || '未填写题干';
+                    const type = getQuestionFieldValue(question, '题型 （必填）') || '未填写题型';
+                    const chapter = getQuestionFieldValue(question, '章节\n（勿删）') || '未分章';
+                    const difficulty = getQuestionFieldValue(question, '难度') || '未设难度';
+                    const answer = getQuestionFieldValue(question, '正确答案\n（必填）') || '未填写';
+                    const analysis = getQuestionAnalysisValue(question);
+                    return `
+                        <div class="question-analysis-card ${hasQuestionAnalysis(question) ? 'has-analysis' : ''} ${loading ? 'is-loading' : ''}">
+                            <div class="question-analysis-card-head">
+                                <div class="question-analysis-index">${String(item.globalIndex + 1).padStart(2, '0')}</div>
+                                <div>
+                                    <div class="question-analysis-meta">
+                                        <span class="question-analysis-pill type">${escapeHTML(type)}</span>
+                                        <span class="question-analysis-pill chapter">${escapeHTML(chapter)}</span>
+                                        <span class="question-analysis-pill empty">${escapeHTML(difficulty)}</span>
+                                        ${renderQuestionAnalysisStatus(question, loading)}
+                                    </div>
+                                    <div class="question-analysis-stem">${escapeHTML(stem)}</div>
+                                </div>
+                                <div class="question-analysis-actions">
+                                    <button class="small" type="button" onclick="generateQuestionAnalysisByGlobalIndex(${item.globalIndex})" ${loading || questionAnalysisBusy ? 'disabled' : ''}>
+                                        <i data-lucide="${hasQuestionAnalysis(question) ? 'refresh-cw' : 'sparkles'}"></i>
+                                        ${hasQuestionAnalysis(question) ? '重新生成解析' : '生成解析'}
+                                    </button>
+                                    <button class="small icon-only" type="button" onclick="syncQuestionAnalysisToFileA()" title="同步到文件 A">
+                                        <i data-lucide="file-symlink"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="question-analysis-card-body">
+                                <div>
+                                    ${renderQuestionAnalysisOptions(question)}
+                                    <div class="question-analysis-answer-row">
+                                        <span>正确答案</span>
+                                        <strong>${escapeHTML(answer)}</strong>
+                                    </div>
+                                </div>
+                                <div class="question-analysis-text">
+                                    <div class="question-analysis-text-head">
+                                        <span>题目解析</span>
+                                        ${hasQuestionAnalysis(question) ? '<span class="question-analysis-pill ready">已写入</span>' : '<span class="question-analysis-pill empty">字段为 null</span>'}
+                                    </div>
+                                    <div class="question-analysis-text-body">${analysis ? escapeHTML(analysis) : '<span class="question-analysis-pill empty">解析为空，可单题生成或一键补全。</span>'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('') || '<div class="question-analysis-empty">没有匹配的题目。</div>';
+            }
+
+            updateQuestionAnalysisToggleButton();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            scheduleSectionSummaries();
+        }
+
+        function updateQuestionAnalysisToggleButton() {
+            const bar = document.getElementById('questionAnalysisStatusBar');
+            const btn = document.getElementById('questionAnalysisToggleBtn');
+            if (!bar || !btn) return;
+            const collapsed = bar.classList.contains('collapsed');
+            btn.innerHTML = `<i data-lucide="${collapsed ? 'chevrons-down' : 'chevrons-up'}"></i>`;
+            btn.title = collapsed ? '展开题目列表' : '收起题目列表';
+            btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        }
+
+        function setQuestionAnalysisCollapsed(collapsed, {persist = true} = {}) {
+            const bar = document.getElementById('questionAnalysisStatusBar');
+            if (!bar) return;
+            bar.classList.toggle('collapsed', collapsed);
+            if (persist) {
+                localStorage.setItem(QUESTION_ANALYSIS_COLLAPSED_STORAGE_KEY, collapsed ? 'true' : 'false');
+            }
+            updateQuestionAnalysisToggleButton();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function applyQuestionAnalysisCollapsedState() {
+            const saved = localStorage.getItem(QUESTION_ANALYSIS_COLLAPSED_STORAGE_KEY);
+            setQuestionAnalysisCollapsed(saved === null ? true : saved !== 'false', {persist: false});
+        }
+
+        function toggleQuestionAnalysisPanel() {
+            const bar = document.getElementById('questionAnalysisStatusBar');
+            const collapsed = bar ? bar.classList.contains('collapsed') : true;
+            setQuestionAnalysisCollapsed(!collapsed);
+            renderQuestionAnalysisBar();
+        }
+
+        function refreshQuestionAnalysisBar() {
+            renderQuestionAnalysisBar();
+            addLog('刷新解析状态栏', getQuestionAnalysisSource().label);
+        }
+
+        function setQuestionAnalysisFilter(filter) {
+            questionAnalysisFilter = filter;
+            document.querySelectorAll('[data-analysis-filter]').forEach(button => {
+                button.classList.toggle('active', button.dataset.analysisFilter === filter);
+            });
+            renderQuestionAnalysisBar();
+        }
+
+        function clampQuestionAnalysisConcurrency(value) {
+            const parsed = parseInt(value, 10);
+            if (!Number.isFinite(parsed)) return 3;
+            return Math.max(1, Math.min(20, parsed));
+        }
+
+        function getQuestionAnalysisConcurrency() {
+            const input = document.getElementById('questionAnalysisConcurrency');
+            const raw = input?.value || localStorage.getItem(QUESTION_ANALYSIS_CONCURRENCY_STORAGE_KEY) || '3';
+            return clampQuestionAnalysisConcurrency(raw);
+        }
+
+        function saveQuestionAnalysisConcurrency() {
+            const input = document.getElementById('questionAnalysisConcurrency');
+            const value = clampQuestionAnalysisConcurrency(input?.value || '3');
+            if (input) input.value = value;
+            localStorage.setItem(QUESTION_ANALYSIS_CONCURRENCY_STORAGE_KEY, String(value));
+            addLog('设置解析并发数', `${value}`);
+            scheduleSectionSummaries();
+        }
+
+        function applyQuestionAnalysisConcurrencySetting() {
+            const input = document.getElementById('questionAnalysisConcurrency');
+            if (!input) return;
+            input.value = clampQuestionAnalysisConcurrency(localStorage.getItem(QUESTION_ANALYSIS_CONCURRENCY_STORAGE_KEY) || input.value || '3');
+        }
+
+        function syncQuestionAnalysisToFileA(options = {}) {
+            const outputSource = collectOutputQuestionSource();
+            const source = options.preferOutputs
+                ? outputSource
+                : getQuestionAnalysisSource();
+            if (!source.items.length) {
+                if (!options.silent) addLog('同步解析状态失败', '暂无可同步题目');
+                renderQuestionAnalysisBar();
+                return false;
+            }
+            const payload = {questions: source.items.map(item => item.question)};
+            setTextareaValue('fileA', JSON.stringify(payload, null, 2));
+            refreshFileAState();
+            if (!options.silent) addLog('同步解析状态到文件A', `题目数: ${source.items.length}`);
+            return true;
+        }
+
+        function applyQuestionAnalysisToSource(item, analysis) {
+            if (!item) return false;
+            if (item.sourceType === 'fileA') {
+                const fileA = document.getElementById('fileA');
+                const data = parseQuestionJSONText(fileA?.value || '');
+                if (!data || !Array.isArray(data.questions) || !data.questions[item.questionIndex]) {
+                    throw new Error('文件 A 中找不到该题目');
+                }
+                setQuestionAnalysisValue(data.questions[item.questionIndex], analysis);
+                setTextareaValue('fileA', JSON.stringify(data, null, 2));
+                refreshFileAState();
+                return true;
+            }
+
+            const textarea = document.getElementById(`editable-${item.pairId}`);
+            const data = parseQuestionJSONText(textarea?.value || '');
+            if (!data || !Array.isArray(data.questions) || !data.questions[item.questionIndex]) {
+                throw new Error(`输出 #${item.pairId + 1} 中找不到该题目`);
+            }
+            setQuestionAnalysisValue(data.questions[item.questionIndex], analysis);
+            updateOutputEditable(item.pairId, JSON.stringify(data, null, 2));
+            validateJSON(item.pairId);
+            syncQuestionAnalysisToFileA({silent: true, preferOutputs: true});
+            return true;
+        }
+
+        async function generateQuestionAnalysisItem(item) {
+            const error = document.getElementById('error');
+            if (error) {
+                error.style.display = 'none';
+                error.textContent = '';
+            }
+
+            const selectedApi = apiConfigs.find(c => c.selected);
+            if (!selectedApi || !selectedApi.url || !selectedApi.key || !selectedApi.model) {
+                if (error) {
+                    error.textContent = '❌ 请完整填写选中的 API 配置';
+                    error.style.display = 'block';
+                }
+                addLog('生成解析失败', 'API配置不完整');
+                return false;
+            }
+
+            if (!item) {
+                addLog('生成解析失败', '找不到对应题目');
+                return false;
+            }
+
+            const key = questionAnalysisItemKey(item);
+            questionAnalysisLoadingKeys.add(key);
+            renderQuestionAnalysisBar();
+            addLog(`生成解析 #${item.globalIndex + 1}`, `模型: ${selectedApi.model}`);
+
+            try {
+                const response = await fetch('/api/generate-explanation', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(await buildApiRequestPayload(selectedApi, {
+                        question: item.question,
+                        prompt: getPromptValue('explanation')
+                    }))
+                });
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                const analysis = String(data.analysis || '').trim();
+                if (!analysis) {
+                    throw new Error('模型未返回解析内容');
+                }
+                applyQuestionAnalysisToSource(item, analysis);
+                addLog(`生成解析完成 #${item.globalIndex + 1}`, `${analysis.length} 字`, data.debugId ? {debugId: data.debugId, kind: 'explanation'} : null);
+                return true;
+            } catch (e) {
+                if (error) {
+                    error.textContent = `❌ 生成解析失败: ${e.message}`;
+                    error.style.display = 'block';
+                }
+                addLog(`生成解析异常 #${item.globalIndex + 1}`, e.message);
+                return false;
+            } finally {
+                questionAnalysisLoadingKeys.delete(key);
+                renderQuestionAnalysisBar();
+            }
+        }
+
+        async function generateQuestionAnalysisByGlobalIndex(globalIndex) {
+            const source = getQuestionAnalysisSource();
+            const item = source.items.find(entry => entry.globalIndex === globalIndex);
+            return generateQuestionAnalysisItem(item);
+        }
+
+        async function generateAllQuestionAnalysis() {
+            const source = getQuestionAnalysisSource();
+            const targets = source.items.filter(item => !hasQuestionAnalysis(item.question));
+            if (!targets.length) {
+                addLog('一键解析', '没有缺少解析的题目');
+                renderQuestionAnalysisBar();
+                return;
+            }
+
+            questionAnalysisBusy = true;
+            renderQuestionAnalysisBar();
+            const concurrency = Math.min(getQuestionAnalysisConcurrency(), targets.length);
+            addLog('开始一键解析', `待生成 ${targets.length} 道题，并发 ${concurrency}`);
+
+            let success = 0;
+            let cursor = 0;
+            const runWorker = async () => {
+                while (cursor < targets.length) {
+                    const target = targets[cursor++];
+                    const ok = await generateQuestionAnalysisItem(target);
+                    if (ok) success += 1;
+                }
+            };
+            try {
+                await Promise.all(Array.from({length: concurrency}, () => runWorker()));
+                addLog('一键解析完成', `成功 ${success}/${targets.length} 道`);
+            } finally {
+                questionAnalysisBusy = false;
+                renderQuestionAnalysisBar();
+            }
         }
 
         function getFileASortFieldValue(question, sortKey) {
@@ -3213,6 +3965,7 @@
                 setTextareaValue('fileA', JSON.stringify(result, null, 2));
                 document.getElementById('compareBtn').disabled = false;
                 setExportButtonsDisabled(false);
+                renderQuestionAnalysisBar();
                 addLog('生成文件A', `题目数: ${allQuestions.length}, 去除null: ${removeNull ? '是' : '否'}`);
             } catch (e) {
                 alert(`❌ 生成失败: ${e.message}`);
@@ -3703,6 +4456,8 @@
             loadConfigs();
             renderInputPairs();
             renderOutputPairs();
+            applyQuestionAnalysisConcurrencySetting();
+            renderQuestionAnalysisBar();
             await loadSystemPrompt();
             await loadQuestionTypes();
             renderLogs();
@@ -3713,6 +4468,8 @@
 
             initializeThemeSystem();
             initializeSectionColorSettings();
+            initializeCollapsibleSections();
+            updateSectionSummaries();
 
             addLog('页面加载', '系统初始化完成');
 
